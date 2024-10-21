@@ -1,76 +1,96 @@
-
-
 import * as BABYLON from '@babylonjs/core';
 
-export function createOctree(scene, size, center, maxDepth = 4) {
-  if (!scene) {
-    console.error("Scene is not available");
-    return null;
+class OctreeNode {
+  constructor(center, size) {
+    this.center = center;
+    this.size = size;
+    this.children = [];
   }
-
-  // Check if size and center are valid
-  if (!size || typeof size.x !== 'number' || typeof size.y !== 'number' || typeof size.z !== 'number') {
-    console.error("Invalid size object", size);
-    return null;
-  }
-
-  if (!center || typeof center.x !== 'number' || typeof center.y !== 'number' || typeof center.z !== 'number') {
-    console.error("Invalid center object", center);
-    return null;
-  }
-
-  // Create an octree with the provided depth and size
-  const octree = new BABYLON.Octree(maxDepth);
-
-  // Create a dummy root mesh for the scene
-  const rootMesh = new BABYLON.Mesh("root", scene);
-  rootMesh.position = new BABYLON.Vector3(center.x, center.y, center.z);
-
-  // Create a box to represent the octree bounds
-  const boundingBox = BABYLON.MeshBuilder.CreateBox("boundingBox", { size: 1 }, scene);
-  boundingBox.scaling = new BABYLON.Vector3(size.x, size.y, size.z);
-  boundingBox.parent = rootMesh;
-
-  // Make the bounding box wireframe
-  const boundingBoxMaterial = new BABYLON.StandardMaterial("boundingBoxMat", scene);
-  boundingBoxMaterial.wireframe = true;
-  boundingBox.material = boundingBoxMaterial;
-
-  // Register the root mesh in the octree
-  octree.update(rootMesh);
-
-  console.log("Octree created with size and center");
-  return { octree, rootMesh };
 }
 
-export function visualizeOctree(scene, octree, rootMesh) {
-    const boxMaterial = new BABYLON.StandardMaterial("boxMat", scene);
-    boxMaterial.diffuseColor = new BABYLON.Color3(0, 1, 0);
-    boxMaterial.alpha = 0.3;
-  
-    function createBoxForOctreeNode(node, depth) {
-      if (depth >= octree.maxDepth) return;
-  
-      const size = node.boundingBox.maximumWorld.subtract(node.boundingBox.minimumWorld);
-      const center = node.boundingBox.centerWorld;
-  
-      const box = BABYLON.MeshBuilder.CreateBox(`octreeNode_${depth}`, { size: 1 }, scene);
-      box.scaling = size;
-      box.position = center;
-      box.material = boxMaterial;
-  
-      // Recursively create boxes for child nodes
-      if (node.blocks) {
-        for (let childNode of node.blocks) {
-          createBoxForOctreeNode(childNode, depth + 1);
+export class CustomOctree {
+  constructor(center, size, maxDepth) {
+    this.root = new OctreeNode(center, size);
+    this.maxDepth = maxDepth;
+  }
+
+  subdivide(node, depth) {
+    if (depth >= this.maxDepth) return;
+
+    const halfSize = node.size / 2;
+    for (let x = -1; x <= 1; x += 2) {
+      for (let y = -1; y <= 1; y += 2) {
+        for (let z = -1; z <= 1; z += 2) {
+          const childCenter = new BABYLON.Vector3(
+            node.center.x + x * halfSize / 2,
+            node.center.y + y * halfSize / 2,
+            node.center.z + z * halfSize / 2
+          );
+          const child = new OctreeNode(childCenter, halfSize);
+          node.children.push(child);
+          this.subdivide(child, depth + 1);
         }
       }
     }
-  
-    createBoxForOctreeNode(octree.blocks[0], 0);
   }
-  
-  export function initializeScene(canvas) {
+
+  create() {
+    this.subdivide(this.root, 0);
+  }
+}
+
+export function createCustomOctree(scene, size, center, maxDepth = 1) {
+  console.log("Creating custom octree with size:", size, "and center:", center);
+
+  const octree = new CustomOctree(
+    new BABYLON.Vector3(center.x, center.y, center.z),
+    Math.max(size.x, size.y, size.z),
+    maxDepth
+  );
+  octree.create();
+
+  console.log("Custom octree created successfully");
+  return octree;
+}
+
+export function visualizeCustomOctree(scene, octree) {
+  const lines = [];
+
+  function createEdgesForNode(node) {
+    const halfSize = node.size / 2;
+    const corners = [
+      new BABYLON.Vector3(node.center.x - halfSize, node.center.y - halfSize, node.center.z - halfSize),
+      new BABYLON.Vector3(node.center.x + halfSize, node.center.y - halfSize, node.center.z - halfSize),
+      new BABYLON.Vector3(node.center.x + halfSize, node.center.y + halfSize, node.center.z - halfSize),
+      new BABYLON.Vector3(node.center.x - halfSize, node.center.y + halfSize, node.center.z - halfSize),
+      new BABYLON.Vector3(node.center.x - halfSize, node.center.y - halfSize, node.center.z + halfSize),
+      new BABYLON.Vector3(node.center.x + halfSize, node.center.y - halfSize, node.center.z + halfSize),
+      new BABYLON.Vector3(node.center.x + halfSize, node.center.y + halfSize, node.center.z + halfSize),
+      new BABYLON.Vector3(node.center.x - halfSize, node.center.y + halfSize, node.center.z + halfSize)
+    ];
+
+    // Create edges
+    for (let i = 0; i < 4; i++) {
+      lines.push([corners[i], corners[(i + 1) % 4]]);
+      lines.push([corners[i + 4], corners[((i + 1) % 4) + 4]]);
+      lines.push([corners[i], corners[i + 4]]);
+    }
+
+    // Recursively create edges for child nodes
+    for (let child of node.children) {
+      createEdgesForNode(child);
+    }
+  }
+
+  createEdgesForNode(octree.root);
+
+  const lineSystem = BABYLON.MeshBuilder.CreateLineSystem("octreeLines", { lines: lines }, scene);
+  lineSystem.color = new BABYLON.Color3(0, 1, 0); // Green color for better visibility
+
+  console.log("Custom octree visualized with edge lines");
+}
+
+export function initializeScene(canvas) {
     const engine = new BABYLON.Engine(canvas, true);
     const scene = new BABYLON.Scene(engine);
   

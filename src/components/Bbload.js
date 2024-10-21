@@ -24,8 +24,16 @@ export async function calculateBoundingBoxes(results, canvas) {
 
         return {
           meshName: mesh.name,
-          min: boundingBox.minimumWorld,
-          max: boundingBox.maximumWorld
+          min: {
+            x: boundingBox.minimumWorld.x,
+            y: boundingBox.minimumWorld.y,
+            z: boundingBox.minimumWorld.z
+          },
+          max: {
+            x: boundingBox.maximumWorld.x,
+            y: boundingBox.maximumWorld.y,
+            z: boundingBox.maximumWorld.z
+          }
         };
       });
 
@@ -49,8 +57,16 @@ export async function calculateBoundingBoxes(results, canvas) {
   return {
     individualResults: boxesResults,
     cumulativeBoundingBox: {
-      min: cumulativeMin,
-      max: cumulativeMax
+      min: {
+        x: cumulativeMin.x,
+        y: cumulativeMin.y,
+        z: cumulativeMin.z
+      },
+      max: {
+        x: cumulativeMax.x,
+        y: cumulativeMax.y,
+        z: cumulativeMax.z
+      }
     }
   };
 }
