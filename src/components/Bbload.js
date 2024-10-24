@@ -200,40 +200,50 @@ export async function calculateBoundingBoxes(results, canvas) {
             const result = await SceneLoader.ImportMeshAsync("", "", convertedFilePath, scene);
             const meshes = result.meshes;
             const meshBoundingBoxes = meshes.map((mesh) => {
-                const boundingInfo = mesh.getBoundingInfo();
-                const boundingBox = boundingInfo.boundingBox;
-                
-                // Update cumulative bounding box
-                cumulativeMin = Vector3.Minimize(cumulativeMin, boundingBox.minimumWorld);
-                cumulativeMax = Vector3.Maximize(cumulativeMax, boundingBox.maximumWorld);
-                  // Create a box mesh from the bounding box
-                  const sizeX = boundingBox.maximumWorld.x - boundingBox.minimumWorld.x;
-                  const sizeY = boundingBox.maximumWorld.y - boundingBox.minimumWorld.y;
-                  const sizeZ = boundingBox.maximumWorld.z - boundingBox.minimumWorld.z;
-                  const center = boundingBox.centerWorld;
-                  const boundingBoxMesh = BABYLON.MeshBuilder.CreateBox("boundingBox_" + mesh.name, {
-                      width: sizeX,
-                      height: sizeY,
-                      depth: sizeZ
-                  }, scene);
-                  boundingBoxMesh.position = center;
-                  boundingBoxMesh.visibility = 0.3; // Make it semi-transparent
-                  
-                  return {
-                      originalMesh: mesh,
-                      boundingBoxMesh: boundingBoxMesh,
-                      meshName: mesh.name,
-                      min: {
-                          x: boundingBox.minimumWorld.x,
-                          y: boundingBox.minimumWorld.y,
-                          z: boundingBox.minimumWorld.z
-                      },
-                      max: {
-                          x: boundingBox.maximumWorld.x,
-                          y: boundingBox.maximumWorld.y,
-                          z: boundingBox.maximumWorld.z
-                      }
-                  };
+                console.log(mesh);
+                if(mesh.name.includes('__root__')){
+                    console.log("Skipping root mesh");
+                    
+                }
+                else{
+                    const boundingInfo = mesh.getBoundingInfo();
+                    console.log(boundingInfo);
+                    const boundingBox = boundingInfo.boundingBox;
+                    
+                    // Update cumulative bounding box
+                    cumulativeMin = Vector3.Minimize(cumulativeMin, boundingBox.minimumWorld);
+                    cumulativeMax = Vector3.Maximize(cumulativeMax, boundingBox.maximumWorld);
+                      // Create a box mesh from the bounding box
+                      const sizeX = boundingBox.maximumWorld.x - boundingBox.minimumWorld.x;
+                      const sizeY = boundingBox.maximumWorld.y - boundingBox.minimumWorld.y;
+                      const sizeZ = boundingBox.maximumWorld.z - boundingBox.minimumWorld.z;
+                      const center = boundingBox.centerWorld;
+                      const boundingBoxMesh = BABYLON.MeshBuilder.CreateBox("boundingBox_" + mesh.name, {
+                          width: sizeX,
+                          height: sizeY,
+                          depth: sizeZ
+                      }, scene);
+                      boundingBoxMesh.position = center;
+                      boundingBoxMesh.visibility = 0.3; // Make it semi-transparent
+                       //   console.log(boundingBox.minimumWorld);
+                      
+                      return {
+                          originalMesh: mesh,
+                          boundingBoxMesh: boundingBoxMesh,
+                          meshName: mesh.name,
+                          min: {
+                              x: boundingBox.minimumWorld.x,
+                              y: boundingBox.minimumWorld.y,
+                              z: boundingBox.minimumWorld.z
+                          },
+                          max: {
+                              x: boundingBox.maximumWorld.x,
+                              y: boundingBox.maximumWorld.y,
+                              z: boundingBox.maximumWorld.z
+                          }
+                      };
+                }
+              
               });
               return {
                 filePath: convertedFilePath,
