@@ -1063,3 +1063,57 @@ export function initializeScene(canvas) {
 
     return { scene, engine };
 }
+
+// Camera positioning utility functions
+export function positionCameraToFitBoundingBox(camera, boundingBox, scene) {
+    if (!boundingBox || !boundingBox.min || !boundingBox.max) {
+        console.warn('Invalid bounding box provided for camera positioning');
+        return;
+    }
+
+    // Calculate bounding box center
+    const center = {
+        x: (boundingBox.max.x + boundingBox.min.x) / 2,
+        y: (boundingBox.max.y + boundingBox.min.y) / 2,
+        z: (boundingBox.max.z + boundingBox.min.z) / 2
+    };
+
+    // Calculate bounding box dimensions
+    const dimensions = {
+        x: Math.abs(boundingBox.max.x - boundingBox.min.x),
+        y: Math.abs(boundingBox.max.y - boundingBox.min.y),
+        z: Math.abs(boundingBox.max.z - boundingBox.min.z)
+    };
+
+    // Calculate the radius of the bounding sphere
+    const radius = Math.sqrt(
+        Math.pow(dimensions.x, 2) + 
+        Math.pow(dimensions.y, 2) + 
+        Math.pow(dimensions.z, 2)
+    ) / 2;
+
+    // Set camera target to bounding box center
+    camera.setTarget(new BABYLON.Vector3(center.x, center.y, center.z));
+
+    // Calculate camera distance based on field of view and bounding sphere
+    const aspectRatio = scene.getEngine().getRenderWidth() / scene.getEngine().getRenderHeight();
+    const fov = camera.fov;
+    const distance = (radius * 1.5) / Math.tan(fov / 2); // 1.5 is a margin factor
+
+    // Position camera at an angled view
+    const alpha = -Math.PI / 4; // -45 degrees
+    const beta = Math.PI / 3;   // 60 degrees
+    
+    camera.setPosition(new BABYLON.Vector3(
+        center.x + distance * Math.cos(beta) * Math.cos(alpha),
+        center.y + distance * Math.sin(beta),
+        center.z + distance * Math.cos(beta) * Math.sin(alpha)
+    ));
+
+    // Set camera limits
+    camera.lowerRadiusLimit = radius * 0.5;  // Don't allow closer than half radius
+    camera.upperRadiusLimit = distance * 2;   // Don't allow farther than twice the initial distance
+    
+    // Update camera's radius
+    camera.radius = distance;
+}

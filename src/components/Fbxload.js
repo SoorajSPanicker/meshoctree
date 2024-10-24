@@ -568,7 +568,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { calculateBoundingBoxes, createBoundingBoxMesh } from './Bbload';
-import { createCustomOctree, visualizeCustomOctree, initializeScene } from './Octreecreation';
+import { createCustomOctree, visualizeCustomOctree, initializeScene, positionCameraToFitBoundingBox } from './Octreecreation';
 import * as BABYLON from '@babylonjs/core';
 import Octreestorage from './Octreestorage';
 function Fbxload() {
@@ -709,19 +709,19 @@ function Fbxload() {
         //         if (!results || !Array.isArray(individualResults)) {
         //             throw new Error('Invalid conversion results format');
         //         }
-        
+
         //         const { individualResults, cumulativeBoundingBox } = await calculateBoundingBoxes(results, canvasRef.current);
         //         console.log('Individual results:', individualResults);
         //         console.log('Cumulative bounding box:', cumulativeBoundingBox);
-        
+
         //         // Validate bounding box calculations
         //         if (!cumulativeBoundingBox || !cumulativeBoundingBox.min || !cumulativeBoundingBox.max) {
         //             throw new Error('Invalid cumulative bounding box calculation');
         //         }
-        
+
         //         setBoundingBoxes(individualResults);
         //         setCumulativeBoundingBox(cumulativeBoundingBox);
-        
+
         //         const size = {
         //             x: cumulativeBoundingBox.max.x - cumulativeBoundingBox.min.x,
         //             y: cumulativeBoundingBox.max.y - cumulativeBoundingBox.min.y,
@@ -732,61 +732,61 @@ function Fbxload() {
         //             y: (cumulativeBoundingBox.max.y + cumulativeBoundingBox.min.y) / 2,
         //             z: (cumulativeBoundingBox.max.z + cumulativeBoundingBox.min.z) / 2
         //         };
-        
+
         //         if (!scene) {
         //             throw new Error('Scene is not initialized');
         //         }
-        
+
         //         const customOctree = createCustomOctree(scene, size, center);
         //         const originalMeshDataArray = [];
         //         const mergedMeshDataArray = [];
-                
+
         //         // Process and insert meshes with validation
         //         individualResults.forEach((fileResult, fileIndex) => {
         //             if (!fileResult) {
         //                 console.warn(`Skipping undefined file result at index ${fileIndex}`);
         //                 return;
         //             }
-        
+
         //             if (fileResult.error) {
         //                 console.warn(`Skipping file result with error:`, fileResult.error);
         //                 return;
         //             }
-        
+
         //             if (!Array.isArray(fileResult.boundingBoxes)) {
         //                 console.warn(`Invalid boundingBoxes for file result:`, fileResult);
         //                 return;
         //             }
-        
+
         //             fileResult.boundingBoxes.forEach((boxData, boxIndex) => {
         //                 if (!boxData) {
         //                     console.warn(`Skipping undefined box data at index ${boxIndex}`);
         //                     return;
         //                 }
-        
+
         //                 if (!boxData.originalMesh) {
         //                     console.warn(`Missing originalMesh in box data:`, boxData);
         //                     return;
         //                 }
-        
+
         //                 try {
         //                     // Validate mesh before processing
         //                     if (!boxData.originalMesh.getBoundingInfo) {
         //                         console.warn(`Invalid mesh object:`, boxData.originalMesh);
         //                         return;
         //                     }
-        
+
         //                     const boundingBox = boxData.originalMesh.getBoundingInfo().boundingBox;
         //                     if (!boundingBox || !boundingBox.maximumWorld || !boundingBox.minimumWorld) {
         //                         console.warn(`Invalid bounding box for mesh:`, boxData.originalMesh.name);
         //                         return;
         //                     }
-        
+
         //                     // Create bounding box mesh
         //                     const sizeX = boundingBox.maximumWorld.x - boundingBox.minimumWorld.x;
         //                     const sizeY = boundingBox.maximumWorld.y - boundingBox.minimumWorld.y;
         //                     const sizeZ = boundingBox.maximumWorld.z - boundingBox.minimumWorld.z;
-        
+
         //                     const boundingBoxMesh = BABYLON.MeshBuilder.CreateBox(
         //                         `boundingBox_${boxData.originalMesh.name}`,
         //                         {
@@ -798,7 +798,7 @@ function Fbxload() {
         //                     );
         //                     boundingBoxMesh.position = boundingBox.centerWorld;
         //                     boundingBoxMesh.visibility = 0.3;
-        
+
         //                     // Insert into octree
         //                     const nodeId = customOctree.root.nodeId;
         //                     customOctree.insertMesh(
@@ -807,22 +807,22 @@ function Fbxload() {
         //                         boundingBoxMesh,
         //                         0
         //                     );
-        
+
         //                     // Collect original mesh data
         //                     const originalMeshData = collectMeshData(boxData.originalMesh, nodeId, true);
         //                     if (originalMeshData) {
         //                         originalMeshDataArray.push(originalMeshData);
         //                     }
-        
+
         //                 } catch (error) {
         //                     console.error(`Error processing mesh ${boxData.originalMesh?.name}:`, error);
         //                 }
         //             });
         //         });
-        
+
         //         // Merge bounding boxes and collect merged mesh data
         //         await customOctree.mergeBoundingBoxesInAllNodes(scene);
-        
+
         //         // Collect merged mesh data with validation
         //         const collectMergedMeshData = (node) => {
         //             if (node && node.mergedMesh) {
@@ -836,20 +836,20 @@ function Fbxload() {
         //             }
         //         };
         //         collectMergedMeshData(customOctree.root);
-        
+
         //         // Update state only if we have valid data
         //         if (originalMeshDataArray.length > 0 || mergedMeshDataArray.length > 0) {
         //             setOctreeData(collectOctreeData(customOctree));
         //             setOriginalMeshesData(originalMeshDataArray);
         //             setMergedMeshesData(mergedMeshDataArray);
         //         }
-        
+
         //         // Visualize octree only if we have valid root
         //         if (customOctree.root) {
         //             visualizeCustomOctree(scene, customOctree);
         //             console.log("Octree visualization completed");
         //         }
-        
+
         //     } catch (error) {
         //         console.error("Error processing conversion results:", error);
         //         // You might want to set an error state here to show to the user
@@ -873,6 +873,14 @@ function Fbxload() {
                     return;
                 }
 
+                // Position camera to fit the cumulative bounding box
+                if (sceneRef.current) {
+                    const camera = sceneRef.current.cameras[0];
+                    // if (camera) {
+                    positionCameraToFitBoundingBox(camera, cumulativeBoundingBox, sceneRef.current);
+                    // }
+                }
+
                 const size = {
                     x: cumulativeBoundingBox.max.x - cumulativeBoundingBox.min.x,
                     y: cumulativeBoundingBox.max.y - cumulativeBoundingBox.min.y,
@@ -885,14 +893,15 @@ function Fbxload() {
                 };
 
                 console.log(center);
-                
+
 
                 if (scene) {
                     try {
                         const customOctree = createCustomOctree(scene, size, center);
+                        console.log(customOctree);
                         const originalMeshDataArray = [];
                         const mergedMeshDataArray = [];
-                        
+
                         // Process and insert meshes
                         individualResults.forEach(fileResult => {
                             if (!fileResult.error) {
@@ -901,14 +910,14 @@ function Fbxload() {
                                         console.warn('Invalid mesh data:', boxData);
                                         return;
                                     }
-            
+
                                     try {
                                         // Create bounding box mesh
                                         const boundingBox = boxData.originalMesh.getBoundingInfo().boundingBox;
                                         const sizeX = boundingBox.maximumWorld.x - boundingBox.minimumWorld.x;
                                         const sizeY = boundingBox.maximumWorld.y - boundingBox.minimumWorld.y;
                                         const sizeZ = boundingBox.maximumWorld.z - boundingBox.minimumWorld.z;
-            
+
                                         const boundingBoxMesh = BABYLON.MeshBuilder.CreateBox(
                                             "boundingBox_" + boxData.originalMesh.name,
                                             {
@@ -920,32 +929,34 @@ function Fbxload() {
                                         );
                                         boundingBoxMesh.position = boundingBox.centerWorld;
                                         boundingBoxMesh.visibility = 0.3;
-            
+
                                         // Insert into octree
                                         const nodeId = customOctree.root.nodeId;
+                                        console.log(nodeId);
                                         customOctree.insertMesh(
                                             customOctree.root,
                                             boxData.originalMesh,
                                             boundingBoxMesh,
                                             0
                                         );
-            
+
                                         // Collect original mesh data with proper checks
                                         const originalMeshData = collectMeshData(boxData.originalMesh, nodeId, true);
                                         if (originalMeshData) {
                                             originalMeshDataArray.push(originalMeshData);
                                         }
-            
+
                                     } catch (error) {
                                         console.error(`Error processing mesh ${boxData.originalMesh?.name}:`, error);
                                     }
                                 });
                             }
                         });
-            
+
                         // Merge bounding boxes and collect merged mesh data
                         await customOctree.mergeBoundingBoxesInAllNodes(scene);
-            
+                        console.log(customOctree);
+
                         // Collect merged mesh data with proper checks
                         const collectMergedMeshData = (node) => {
                             if (node.mergedMesh) {
@@ -957,20 +968,20 @@ function Fbxload() {
                             node.children.forEach(child => collectMergedMeshData(child));
                         };
                         collectMergedMeshData(customOctree.root);
-            
+
                         // Store collected data only if we have valid data
                         if (originalMeshDataArray.length > 0 || mergedMeshDataArray.length > 0) {
                             setOctreeData(collectOctreeData(customOctree));
                             setOriginalMeshesData(originalMeshDataArray);
                             setMergedMeshesData(mergedMeshDataArray);
                         }
-            
+
                         // Visualize octree only if we have data
                         if (customOctree.root) {
                             visualizeCustomOctree(scene, customOctree);
                             console.log("Octree visualization completed");
                         }
-            
+
                     } catch (error) {
                         console.error("Error in custom octree creation or visualization:", error);
                     }
@@ -1011,7 +1022,7 @@ function Fbxload() {
             {boundingBoxes.length > 0 && (
                 <div>
                     <h2>Individual Bounding Boxes:</h2>
-                    {/* {boundingBoxes.map((fileResult, index) => (
+                    {boundingBoxes.map((fileResult, index) => (
                         <div key={index}>
                             <h3>{fileResult.filePath}</h3>
                             {fileResult.error ? (
@@ -1027,11 +1038,11 @@ function Fbxload() {
                                 </ul>
                             )}
                         </div>
-                    ))} */}
+                    ))}
                 </div>
             )}
 
-            {octreeData && originalMeshesData.length > 0 && (
+            {/* {octreeData && originalMeshesData.length > 0 && (
                 <Octreestorage
                     convertedModels={[
                         ...originalMeshesData.map(data => ({
@@ -1045,7 +1056,7 @@ function Fbxload() {
                     ]}
                     octree={octreeData}
                 />
-            )}
+            )} */}
 
         </div>
     );

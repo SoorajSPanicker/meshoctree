@@ -199,13 +199,15 @@ export async function calculateBoundingBoxes(results, canvas) {
         try {
             const result = await SceneLoader.ImportMeshAsync("", "", convertedFilePath, scene);
             const meshes = result.meshes;
-            const meshBoundingBoxes = meshes.map((mesh) => {
+            const meshBoundingBoxes = meshes
+            .filter(mesh => !mesh.name.includes('_root_'))
+            .map((mesh) => {
                 console.log(mesh);
-                if(mesh.name.includes('__root__')){
-                    console.log("Skipping root mesh");
+                // if(mesh.name.includes('_root_')){
+                //     console.log("Skipping root mesh");
                     
-                }
-                else{
+                // }
+                // else{
                     const boundingInfo = mesh.getBoundingInfo();
                     console.log(boundingInfo);
                     const boundingBox = boundingInfo.boundingBox;
@@ -242,7 +244,7 @@ export async function calculateBoundingBoxes(results, canvas) {
                               z: boundingBox.maximumWorld.z
                           }
                       };
-                }
+                // }
               
               });
               return {
@@ -250,7 +252,7 @@ export async function calculateBoundingBoxes(results, canvas) {
                 boundingBoxes: meshBoundingBoxes
             };
         } catch (error) {
-            console.error(`Error loading file ${convertedFilePath}:`, error);
+            console.error(`Error loading file ${convertedFilePath}:, error`);
             return {
                 filePath: convertedFilePath,
                 error: error.message
