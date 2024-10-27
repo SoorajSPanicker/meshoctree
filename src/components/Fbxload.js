@@ -231,17 +231,37 @@ function Fbxload() {
                         await customOctree.mergeBoundingBoxesInAllNodes(scene);
                         console.log(customOctree);
 
-                        // Collect merged mesh data with proper checks
+                        // // Collect merged mesh data with proper checks
+                        // const collectMergedMeshData = (node) => {
+                        //     if (node.mergedMesh) {
+                        //         const mergedMeshData = collectMeshData(node.mergedMesh, node.nodeId, false);
+                        //         if (mergedMeshData) {
+                        //             mergedMeshDataArray.push(mergedMeshData);
+                        //         }
+                        //     }
+                        //     node.children.forEach(child => collectMergedMeshData(child));
+                        // };
+
+                        // collectMergedMeshData(customOctree.root);
+
+                        // After merging
+                        console.log("\n=== Verifying Merge Results ===");
+                        customOctree.printMergedMeshDetails();
+
+                        // Collect merged mesh data with node verification
                         const collectMergedMeshData = (node) => {
                             if (node.mergedMesh) {
+                                console.log(`Collecting merged mesh data for node ${node.nodeId}`);
                                 const mergedMeshData = collectMeshData(node.mergedMesh, node.nodeId, false);
                                 if (mergedMeshData) {
                                     mergedMeshDataArray.push(mergedMeshData);
+                                    console.log(`Added merged mesh data for node ${node.nodeId}`);
                                 }
                             }
                             node.children.forEach(child => collectMergedMeshData(child));
                         };
-                        console.log(collectMergedMeshData);
+                        console.log(customOctree.root);
+
                         collectMergedMeshData(customOctree.root);
 
                         // Store collected data only if we have valid data

@@ -40,8 +40,8 @@ export async function calculateBoundingBoxes(results, canvas) {
                         depth: sizeZ
                     }, scene);
                     boundingBoxMesh.position = center;
-                    boundingBoxMesh.visibility = 0.3; // Make it semi-transparent
-                    //   console.log(boundingBox.minimumWorld);
+                    // boundingBoxMesh.visibility = 0.3; // Make it semi-transparent
+                    // //   console.log(boundingBox.minimumWorld);
 
                     return {
                         originalMesh: mesh,

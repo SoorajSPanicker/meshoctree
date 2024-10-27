@@ -65,119 +65,167 @@ class OctreeNode {
             return false;
         }
     }
+
     async mergeBoundingBoxes(scene) {
         if (this.boundingBoxMeshes.length === 0) {
             console.log(`Node ${this.nodeId}: No bounding boxes to merge`);
             return;
         }
-        console.log(`Node ${this.nodeId}: Starting merge process with ${this.boundingBoxMeshes.length} bounding boxes`);
 
         try {
-            // Filter out null/undefined meshes and ensure they're visible
-            const validMeshes = this.boundingBoxMeshes.filter(mesh => {
-                if (!mesh) {
-                    console.log('Found null/undefined mesh');
-                    return false;
-                }
-                if (!mesh.isVisible) {
-                    console.log(`Mesh ${mesh.name} is not visible`);
-                    return false;
-                }
-                // Check if mesh is disposed
-                if (mesh.isDisposed()) {
-                    console.log(`Mesh ${mesh.name} is disposed`);
-                    return false;
-                }
-                // Verify mesh has geometry
-                if (!mesh.geometry || !mesh.geometry.vertices || mesh.geometry.vertices.length === 0) {
-                    console.log(`Mesh ${mesh.name} has no valid geometry`);
-                    return false;
-                }
-                return true;
-            });
+            // Filter valid meshes
+            const validMeshes = this.boundingBoxMeshes.filter(mesh => 
+                mesh && mesh.isVisible && !mesh.isDisposed() && 
+                mesh.geometry && mesh.geometry.vertices.length > 0
+            );
 
-            console.log(`Valid meshes for merging: ${validMeshes.length}`);
-            validMeshes.forEach(mesh => {
-                console.log(`Mesh details - Name: ${mesh.name}, Visible: ${mesh.isVisible}, Vertices: ${mesh.geometry?.vertices?.length}`);
-            });
-
-            if (validMeshes.length === 0) {
-                console.log(`Node ${this.nodeId}: No valid meshes to merge`);
-                return;
-            }
+            if (validMeshes.length === 0) return;
 
             if (validMeshes.length === 1) {
-                console.log(`Node ${this.nodeId}: Only one valid mesh, using it directly`);
                 this.mergedMesh = validMeshes[0];
-                this.mergedMesh.name = `mergedBox_node_${this.nodeId}`;
             } else {
-                console.log(`Node ${this.nodeId}: Attempting to merge ${validMeshes.length} meshes`);
-
-                // Clone meshes before merging to prevent potential issues
-                const meshesToMerge = validMeshes.map(mesh => mesh.clone(`clone_${mesh.name}`));
-
-                // Ensure all meshes are in world space
-                meshesToMerge.forEach(mesh => {
-                    mesh.computeWorldMatrix(true);
-                    mesh.position = mesh.getAbsolutePosition();
-                    mesh.rotation = BABYLON.Vector3.Zero();
-                    mesh.scaling = new BABYLON.Vector3(1, 1, 1);
-                });
-
+                // Merge meshes
                 this.mergedMesh = BABYLON.Mesh.MergeMeshes(
-                    meshesToMerge,
-                    true,    // dispose source meshes
-                    true,    // allow different materials
-                    undefined, // parent
-                    false,   // don't optimize vertices
-                    true     // use multi-materials
+                    validMeshes.map(mesh => mesh.clone()),
+                    true,
+                    true,
+                    undefined,
+                    false,
+                    true
                 );
-
-                if (!this.mergedMesh) {
-                    console.log(`Node ${this.nodeId}: Merge operation returned null`);
-                    // Try alternative merge approach
-                    this.mergedMesh = new BABYLON.Mesh(`mergedBox_node_${this.nodeId}`, scene);
-                    const vertexData = new BABYLON.VertexData();
-                    const positions = [];
-                    const indices = [];
-                    let currentIndex = 0;
-
-                    meshesToMerge.forEach(mesh => {
-                        const meshVertexData = BABYLON.VertexData.ExtractFromMesh(mesh);
-                        if (meshVertexData && meshVertexData.positions) {
-                            positions.push(...meshVertexData.positions);
-                            const meshIndices = meshVertexData.indices.map(i => i + currentIndex);
-                            indices.push(...meshIndices);
-                            currentIndex += meshVertexData.positions.length / 3;
-                        }
-                    });
-
-                    vertexData.positions = positions;
-                    vertexData.indices = indices;
-                    vertexData.applyToMesh(this.mergedMesh);
-                }
             }
 
             if (this.mergedMesh) {
                 this.mergedMesh.name = `mergedBox_node_${this.nodeId}`;
-                const material = new BABYLON.StandardMaterial(`material_${this.mergedMesh.name}`, scene);
-                material.diffuseColor = new BABYLON.Color3(0.678, 0.847, 0.902);
+                // Set material for merged mesh
+                const material = new BABYLON.StandardMaterial(
+                    `material_${this.mergedMesh.name}`,
+                    scene
+                );
+                material.diffuseColor = new BABYLON.Color3(1, 0, 0)
                 material.alpha = 0.3;
                 this.mergedMesh.material = material;
-                console.log(`Node ${this.nodeId}: Successfully created merged mesh '${this.mergedMesh.name}'`);
-                scene.addMesh(this.mergedMesh)
-            } else {
-                console.log(`Node ${this.nodeId}: Failed to create merged mesh`);
             }
 
         } catch (error) {
-            console.error(`Node ${this.nodeId}: Error during merge process:`, error);
-            // Log detailed error information
-            if (error.stack) {
-                console.log('Error stack:', error.stack);
-            }
+            console.error(`Error merging boxes in node ${this.nodeId}:`, error);
         }
     }
+
+
+    // async mergeBoundingBoxes(scene) {
+    //     if (this.boundingBoxMeshes.length === 0) {
+    //         console.log(`Node ${this.nodeId}: No bounding boxes to merge`);
+    //         return;
+    //     }
+    //     console.log(`Node ${this.nodeId}: Starting merge process with ${this.boundingBoxMeshes.length} bounding boxes`);
+
+    //     try {
+    //         // Filter out null/undefined meshes and ensure they're visible
+    //         const validMeshes = this.boundingBoxMeshes.filter(mesh => {
+    //             if (!mesh) {
+    //                 console.log('Found null/undefined mesh');
+    //                 return false;
+    //             }
+    //             if (!mesh.isVisible) {
+    //                 console.log(`Mesh ${mesh.name} is not visible`);
+    //                 return false;
+    //             }
+    //             // Check if mesh is disposed
+    //             if (mesh.isDisposed()) {
+    //                 console.log(`Mesh ${mesh.name} is disposed`);
+    //                 return false;
+    //             }
+    //             // Verify mesh has geometry
+    //             if (!mesh.geometry || !mesh.geometry.vertices || mesh.geometry.vertices.length === 0) {
+    //                 console.log(`Mesh ${mesh.name} has no valid geometry`);
+    //                 return false;
+    //             }
+    //             return true;
+    //         });
+
+    //         console.log(`Valid meshes for merging: ${validMeshes.length}`);
+    //         validMeshes.forEach(mesh => {
+    //             console.log(`Mesh details - Name: ${mesh.name}, Visible: ${mesh.isVisible}, Vertices: ${mesh.geometry?.vertices?.length}`);
+    //         });
+
+    //         if (validMeshes.length === 0) {
+    //             console.log(`Node ${this.nodeId}: No valid meshes to merge`);
+    //             return;
+    //         }
+
+    //         if (validMeshes.length === 1) {
+    //             console.log(`Node ${this.nodeId}: Only one valid mesh, using it directly`);
+    //             this.mergedMesh = validMeshes[0];
+    //             this.mergedMesh.name = `mergedBox_node_${this.nodeId}`;
+    //         } else {
+    //             console.log(`Node ${this.nodeId}: Attempting to merge ${validMeshes.length} meshes`);
+
+    //             // Clone meshes before merging to prevent potential issues
+    //             const meshesToMerge = validMeshes.map(mesh => mesh.clone(`clone_${mesh.name}`));
+
+    //             // Ensure all meshes are in world space
+    //             meshesToMerge.forEach(mesh => {
+    //                 mesh.computeWorldMatrix(true);
+    //                 mesh.position = mesh.getAbsolutePosition();
+    //                 mesh.rotation = BABYLON.Vector3.Zero();
+    //                 mesh.scaling = new BABYLON.Vector3(1, 1, 1);
+    //             });
+
+    //             this.mergedMesh = BABYLON.Mesh.MergeMeshes(
+    //                 meshesToMerge,
+    //                 true,    // dispose source meshes
+    //                 true,    // allow different materials
+    //                 undefined, // parent
+    //                 false,   // don't optimize vertices
+    //                 true     // use multi-materials
+    //             );
+
+    //             if (!this.mergedMesh) {
+    //                 console.log(`Node ${this.nodeId}: Merge operation returned null`);
+    //                 // Try alternative merge approach
+    //                 this.mergedMesh = new BABYLON.Mesh(`mergedBox_node_${this.nodeId}`, scene);
+    //                 const vertexData = new BABYLON.VertexData();
+    //                 const positions = [];
+    //                 const indices = [];
+    //                 let currentIndex = 0;
+
+    //                 meshesToMerge.forEach(mesh => {
+    //                     const meshVertexData = BABYLON.VertexData.ExtractFromMesh(mesh);
+    //                     if (meshVertexData && meshVertexData.positions) {
+    //                         positions.push(...meshVertexData.positions);
+    //                         const meshIndices = meshVertexData.indices.map(i => i + currentIndex);
+    //                         indices.push(...meshIndices);
+    //                         currentIndex += meshVertexData.positions.length / 3;
+    //                     }
+    //                 });
+
+    //                 vertexData.positions = positions;
+    //                 vertexData.indices = indices;
+    //                 vertexData.applyToMesh(this.mergedMesh);
+    //             }
+    //         }
+
+    //         if (this.mergedMesh) {
+    //             this.mergedMesh.name = `mergedBox_node_${this.nodeId}`;
+    //             const material = new BABYLON.StandardMaterial(`material_${this.mergedMesh.name}`, scene);
+    //             material.diffuseColor = new BABYLON.Color3(0.678, 0.847, 0.902);
+    //             material.alpha = 0.3;
+    //             this.mergedMesh.material = material;
+    //             console.log(`Node ${this.nodeId}: Successfully created merged mesh '${this.mergedMesh.name}'`);
+    //             scene.addMesh(this.mergedMesh)
+    //         } else {
+    //             console.log(`Node ${this.nodeId}: Failed to create merged mesh`);
+    //         }
+
+    //     } catch (error) {
+    //         console.error(`Node ${this.nodeId}: Error during merge process:`, error);
+    //         // Log detailed error information
+    //         if (error.stack) {
+    //             console.log('Error stack:', error.stack);
+    //         }
+    //     }
+    // }
 }
 
 export class CustomOctree {
@@ -279,13 +327,36 @@ export class CustomOctree {
         });
     }
 
+    // async mergeBoundingBoxesInAllNodes(scene) {
+    //     console.log("\n=== Starting Bounding Box Merge Process ===");
+    //     await this.mergeBoundingBoxesInNode(this.root, scene);
+    //     console.log("=== Completed Bounding Box Merge Process ===\n");
+    // }
+    // async mergeBoundingBoxesInNode(node, scene) {
+    //     await node.mergeBoundingBoxes(scene);
+    //     for (const child of node.children) {
+    //         await this.mergeBoundingBoxesInNode(child, scene);
+    //     }
+    // }
+
     async mergeBoundingBoxesInAllNodes(scene) {
         console.log("\n=== Starting Bounding Box Merge Process ===");
         await this.mergeBoundingBoxesInNode(this.root, scene);
         console.log("=== Completed Bounding Box Merge Process ===\n");
     }
+
     async mergeBoundingBoxesInNode(node, scene) {
-        await node.mergeBoundingBoxes(scene);
+        // First merge boxes in current node
+        if (node.boundingBoxMeshes.length > 0) {
+            console.log(`Merging ${node.boundingBoxMeshes.length} boxes in node ${node.nodeId}`);
+            await node.mergeBoundingBoxes(scene);
+            if (node.mergedMesh) {
+                node.mergedMesh.name = `mergedBox_node_${node.nodeId}`;
+                console.log(`Created merged mesh for node ${node.nodeId}`);
+            }
+        }
+
+        // Then process each child node independently
         for (const child of node.children) {
             await this.mergeBoundingBoxesInNode(child, scene);
         }
@@ -392,7 +463,7 @@ export function visualizeCustomOctree(scene, octree) {
                 { lines: lines },
                 scene
             );
-            lineSystem.color = new BABYLON.Color3(0, 1, 0);
+            lineSystem.color = new BABYLON.Color3(1, 0, 0)
             console.log("Created octree visualization with", lines.length, "lines");
         } else {
             console.warn("No lines generated for octree visualization");
