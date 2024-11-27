@@ -1,0 +1,13 @@
+#rightopt {
+    position: fixed;
+    top: 45%;
+    /* right: 0; */
+    width: 25px;
+    padding: 10px 8px 0 8px;
+    border-radius: 8px 0 0 8px;
+    font-size: 16px;
+    display: block;
+    z-index: 5;
+    background-color: #181818;
+    color: #F0F0F0;
+}
