@@ -9,6 +9,7 @@
   "private": true,
   "dependencies": {
     "@babylonjs/loaders": "^7.29.0",
+    "@babylonjs/serializers": "^7.35.2",
     "@testing-library/jest-dom": "^5.17.0",
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",

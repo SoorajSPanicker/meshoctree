@@ -4,6 +4,7 @@ import { createCustomOctree, visualizeCustomOctree, initializeScene, positionCam
 import * as BABYLON from '@babylonjs/core';
 import Octreestorage from './Octreestorage';
 import CameraControls from './CameraControls';
+import { GLTF2Export } from '@babylonjs/serializers/glTF';
 function Fbxload() {
     let nodesAtDepth;
     const maxDepth = 4;
@@ -21,6 +22,11 @@ function Fbxload() {
     let lodOne = [];
     let lodTwo = [];
     let lodThree = [];
+    const [downloadMeshes, setDownloadMeshes] = useState({
+        mesh1: [],
+        mesh2: [],
+        mesh3: []
+    });
     let scene;
     let engine;
     // Add these constants at the top with other state tracking variables
@@ -593,6 +599,9 @@ function Fbxload() {
 
     // Function to merge meshes by angle threshold within a node
     const mergeMeshesByAngle = async () => {
+        let tempMesh1 = [];
+        let tempMesh2 = [];
+        let tempMesh3 = [];
         // Process each depth level
         for (let depth = 1; depth <= 3; depth++) {
             const nodesAtDepth = nodeNumbersByDepth[depth] || [];
@@ -620,7 +629,7 @@ function Fbxload() {
                         const updatedNodeMeshes = nodeMeshes.filter(mesh =>
                             !mesh.name.endsWith('_angle20')
                         );
-
+                        tempMesh1.push(mergedMesh);
                         // Add merged mesh to node contents
                         updatedNodeMeshes.push(mergedMesh);
                         nodeContents.set(nodeNum, updatedNodeMeshes);
@@ -652,7 +661,8 @@ function Fbxload() {
                         const updatedNodeMeshes = nodeContents.get(nodeNum).filter(mesh =>
                             !mesh.name.endsWith('_angle10')
                         );
-
+                        console.log(`merge mesh name ${mergedMesh.name}`)
+                        tempMesh2.push(mergedMesh);
                         // Add merged mesh to node contents
                         updatedNodeMeshes.push(mergedMesh);
                         nodeContents.set(nodeNum, updatedNodeMeshes);
@@ -684,7 +694,7 @@ function Fbxload() {
                         const updatedNodeMeshes = nodeContents.get(nodeNum).filter(mesh =>
                             !mesh.name.endsWith('_angle5')
                         );
-
+                        tempMesh3.push(mergedMesh);
                         // Add merged mesh to node contents
                         updatedNodeMeshes.push(mergedMesh);
                         nodeContents.set(nodeNum, updatedNodeMeshes);
@@ -697,6 +707,11 @@ function Fbxload() {
                 }
             }
         }
+        setDownloadMeshes({
+            mesh1: tempMesh1,
+            mesh2: tempMesh2,
+            mesh3: tempMesh3
+        });
     };
 
     const calculateNodeCenter = (nodeNum) => {
@@ -844,83 +859,513 @@ function Fbxload() {
                 console.log(`Showing ${meshToShow.name} at distance ${distance.toFixed(2)} with ${materialToUse.name}`);
             }
         }
+
+    };
+    const exportGLB = async (meshes) => {
+        if (!meshes || meshes.length === 0) return null;
+
+        try {
+            // Create a temporary scene for export
+            const tempScene = new BABYLON.Scene(engine);
+            const camera = new BABYLON.Camera("camera", BABYLON.Vector3.Zero(), tempScene);
+
+            // Process each mesh
+            const exportMeshes = meshes.map((mesh, index) => {
+                // Validate input mesh
+                if (!mesh || !mesh.geometry) {
+                    console.warn(`Invalid mesh at index ${index}`);
+                    return null;
+                }
+
+                // Get vertex data
+                const positions = mesh.getVerticesData(BABYLON.VertexBuffer.PositionKind);
+                const normals = mesh.getVerticesData(BABYLON.VertexBuffer.NormalKind);
+                const indices = mesh.getIndices();
+
+                // Validate vertex data
+                if (!positions || positions.length === 0) {
+                    console.warn(`Mesh ${mesh.name} has no position data`);
+                    return null;
+                }
+                if (!indices || indices.length === 0) {
+                    console.warn(`Mesh ${mesh.name} has no indices`);
+                    return null;
+                }
+
+                console.log(`Processing mesh ${mesh.name}:`, {
+                    positions: positions.length,
+                    normals: normals?.length,
+                    indices: indices.length
+                });
+
+                // Create new mesh
+                let exportMesh;
+                if (mesh.name.endsWith('_angle5')) {
+                    exportMesh = new BABYLON.Mesh(`hpoly_mesh_${index}`, tempScene);
+                }
+                else if (mesh.name.endsWith('_angle10')) {
+                    exportMesh = new BABYLON.Mesh(`mpoly_mesh_${index}`, tempScene);
+                }
+                else {
+                    exportMesh = new BABYLON.Mesh(`lpoly_mesh_${index}`, tempScene);
+                }
+
+                // Create vertex data
+                const vertexData = new BABYLON.VertexData();
+
+                // Direct copy of vertex data without optimization
+                vertexData.positions = new Float32Array(positions);
+                if (normals && normals.length > 0) {
+                    vertexData.normals = new Float32Array(normals);
+                }
+                vertexData.indices = new Uint32Array(indices);
+
+                try {
+                    // Validate data before applying
+                    if (vertexData.positions.length === 0) {
+                        console.error(`Empty positions array for mesh ${mesh.name}`);
+                        return null;
+                    }
+                    if (vertexData.indices.length % 3 !== 0) {
+                        console.error(`Invalid number of indices for mesh ${mesh.name}`);
+                        return null;
+                    }
+
+                    // Apply vertex data to mesh
+                    vertexData.applyToMesh(exportMesh);
+
+                    // Copy transforms
+                    exportMesh.position.copyFrom(mesh.position);
+                    exportMesh.rotation.copyFrom(mesh.rotation);
+                    exportMesh.scaling.copyFrom(mesh.scaling);
+
+                    // Apply material
+                    const material = new BABYLON.StandardMaterial(`material_${index}`, tempScene);
+                    material.diffuseColor = new BABYLON.Color3(0.7, 0.7, 0.7);
+                    material.metallic = 0.1;
+                    material.roughness = 0.8;
+                    exportMesh.material = material;
+
+                    return exportMesh;
+                } catch (error) {
+                    console.error(`Error creating export mesh ${mesh.name}:`, error);
+                    return null;
+                }
+            }).filter(mesh => mesh !== null);
+
+            if (exportMeshes.length === 0) {
+                throw new Error("No valid meshes to export");
+            }
+
+            console.log(`Successfully processed ${exportMeshes.length} meshes for export`);
+
+            await tempScene.whenReadyAsync();
+
+            // Export options
+            const options = {
+                shouldExportNode: (node) => exportMeshes.includes(node),
+                exportWithoutWaitingForScene: true,
+                includeCoordinateSystemConversionNodes: false,
+                exportTextures: false,
+                truncateDrawRange: true,
+                binary: true,
+                preserveIndices: true,
+                compressVertices: true
+            };
+
+            const serializedGLB = await GLTF2Export.GLBAsync(tempScene, "reduced_model", options);
+            const glbBlob = serializedGLB.glTFFiles['reduced_model.glb'];
+
+            if (!glbBlob || !(glbBlob instanceof Blob)) {
+                throw new Error("Export failed: Invalid blob data");
+            }
+
+            // Cleanup
+            tempScene.dispose();
+
+            return {
+                blob: glbBlob,
+                size: glbBlob.size
+            };
+        } catch (error) {
+            console.error("Error during export:", error);
+            throw error;
+        }
     };
 
-    // const handleOrbitCamera = () => {
-    //     if (!scene || !scene.activeCamera) return;
 
-    //     // Store current camera position and target
-    //     const cameraPosition = scene.activeCamera.position.clone();
-    //     const cameraTarget = scene.activeCamera.target ?
-    //         scene.activeCamera.target.clone() :
-    //         scene.activeCamera.getTarget().clone();
+    // const exportGLB = async (meshes) => {
+    //     if (!meshes || meshes.length === 0) return null;
 
-    //     // Remove old camera
-    //     scene.activeCamera.dispose();
+    //     try {
+    //         // Create a temporary scene for export
+    //         const tempScene = new BABYLON.Scene(engine);
 
-    //     // Create new ArcRotate camera
-    //     camera = new BABYLON.ArcRotateCamera(
-    //         "arcCamera",
-    //         Math.PI / 4, // alpha
-    //         Math.PI / 3, // beta
-    //         camera.radius || maxDistance, // radius
-    //         cameraTarget,
-    //         scene
-    //     );
+    //         // Set up minimal environment
+    //         const camera = new BABYLON.Camera("camera", BABYLON.Vector3.Zero(), tempScene);
 
-    //     // Configure camera
-    //     camera.setPosition(cameraPosition);
-    //     camera.minZ = 0.001;
-    //     camera.wheelDeltaPercentage = 0.01;
-    //     camera.pinchDeltaPercentage = 0.01;
-    //     camera.wheelPrecision = 50;
-    //     camera.panningSensibility = 100;
-    //     camera.angularSensibilityX = 500;
-    //     camera.angularSensibilityY = 500;
-    //     camera.useBouncingBehavior = true;
-    //     camera.useAutoRotationBehavior = false;
-    //     camera.panningAxis = new BABYLON.Vector3(1, 1, 0);
-    //     camera.pinchToPanMaxDistance = 100;
+    //         // Process each mesh
+    //         // const exportMeshes = meshes.map((mesh, index) => {
+    //         //     // Create new mesh in temp scene
+    //         //     let exportMesh;
+    //         //     if (mesh.name.endsWith('_angle5')) {
+    //         //         exportMesh = new BABYLON.Mesh(`hpoly_mesh_${index}`, tempScene);
+    //         //     }
+    //         //     else if (mesh.name.endsWith('_angle10')) {
+    //         //         exportMesh = new BABYLON.Mesh(`mpoly_mesh_${index}`, tempScene);
+    //         //     }
+    //         //     else {
+    //         //         exportMesh = new BABYLON.Mesh(`lpoly_mesh_${index}`, tempScene);
+    //         //     }
 
-    //     camera.attachControl(canvasRef.current, true);
-    //     scene.activeCamera = camera;
 
-    //     // Add observer for LOD updates
-    //     camera.onViewMatrixChangedObservable.add(() => {
-    //         updateLODVisibility();
-    //     });
+    //         //     // Get vertex data from original mesh
+    //         //     const positions = mesh.getVerticesData(BABYLON.VertexBuffer.PositionKind);
+    //         //     const normals = mesh.getVerticesData(BABYLON.VertexBuffer.NormalKind);
+    //         //     const indices = mesh.getIndices();
+
+    //         //     if (!positions || !indices) {
+    //         //         console.warn(`Skipping invalid mesh at index ${index}`);
+    //         //         return null;
+    //         //     }
+
+    //         //     // Remove duplicate vertices
+    //         //     const uniqueVertices = new Map();
+    //         //     const optimizedPositions = [];
+    //         //     const optimizedNormals = [];
+    //         //     const optimizedIndices = [];
+
+    //         //     // Process vertices
+    //         //     for (let i = 0; i < positions.length; i += 3) {
+    //         //         const vertexKey = `${positions[i].toFixed(3)},${positions[i + 1].toFixed(3)},${positions[i + 2].toFixed(3)}`;
+
+    //         //         if (!uniqueVertices.has(vertexKey)) {
+    //         //             const newIndex = optimizedPositions.length / 3;
+    //         //             uniqueVertices.set(vertexKey, newIndex);
+
+    //         //             optimizedPositions.push(positions[i], positions[i + 1], positions[i + 2]);
+    //         //             if (normals) {
+    //         //                 optimizedNormals.push(normals[i], normals[i + 1], normals[i + 2]);
+    //         //             }
+    //         //         }
+    //         //     }
+
+    //         //     // Update indices
+    //         //     for (let i = 0; i < indices.length; i++) {
+    //         //         const originalIndex = indices[i];
+    //         //         const pos = originalIndex * 3;
+    //         //         const vertexKey = `${positions[pos].toFixed(3)},${positions[pos + 1].toFixed(3)},${positions[pos + 2].toFixed(3)}`;
+    //         //         optimizedIndices.push(uniqueVertices.get(vertexKey));
+    //         //     }
+
+    //         //     // Apply optimized data
+    //         //     const vertexData = new BABYLON.VertexData();
+    //         //     vertexData.positions = optimizedPositions;
+    //         //     if (normals) {
+    //         //         vertexData.normals = optimizedNormals;
+    //         //     }
+    //         //     vertexData.indices = optimizedIndices;
+    //         //     vertexData.applyToMesh(exportMesh);
+
+    //         //     // Copy transforms from original mesh
+    //         //     exportMesh.position.copyFrom(mesh.position);
+    //         //     exportMesh.rotation.copyFrom(mesh.rotation);
+    //         //     exportMesh.scaling.copyFrom(mesh.scaling);
+
+    //         //     // Apply material
+    //         //     const material = new BABYLON.PBRMaterial(`material_${index}`, tempScene);
+    //         //     material.albedoColor = new BABYLON.Color3(0.7, 0.7, 0.7);
+    //         //     material.metallic = 0.1;
+    //         //     material.roughness = 0.8;
+    //         //     material.disableBumpMap = true;
+    //         //     material.forceIrradianceInFragment = true;
+    //         //     exportMesh.material = material;
+
+    //         //     return exportMesh;
+    //         // }).filter(mesh => mesh !== null);
+    //         // Inside exportGLB function, modify the mesh processing part:
+    //         const exportMeshes = meshes.map((mesh, index) => {
+    //             // Create new mesh in temp scene
+    //             let exportMesh;
+    //             if (mesh.name.endsWith('_angle5')) {
+    //                 exportMesh = new BABYLON.Mesh(`hpoly_mesh_${index}`, tempScene);
+    //             }
+    //             else if (mesh.name.endsWith('_angle10')) {
+    //                 exportMesh = new BABYLON.Mesh(`mpoly_mesh_${index}`, tempScene);
+    //             }
+    //             else {
+    //                 exportMesh = new BABYLON.Mesh(`lpoly_mesh_${index}`, tempScene);
+    //             }
+
+    //             // Get vertex data from original mesh
+    //             const positions = mesh.getVerticesData(BABYLON.VertexBuffer.PositionKind);
+    //             const normals = mesh.getVerticesData(BABYLON.VertexBuffer.NormalKind);
+    //             const indices = mesh.getIndices();
+
+    //             if (!positions || !indices) {
+    //                 console.warn(`Skipping invalid mesh at index ${index}`);
+    //                 return null;
+    //             }
+
+    //             // Create a map to track unique vertices
+    //             const vertexMap = new Map();
+    //             const uniquePositions = [];
+    //             const uniqueNormals = [];
+    //             const newIndices = [];
+
+    //             // Process each triangle
+    //             for (let i = 0; i < indices.length; i += 3) {
+    //                 const triangle = [];
+
+    //                 // Process each vertex of the triangle
+    //                 for (let j = 0; j < 3; j++) {
+    //                     const originalIndex = indices[i + j];
+    //                     const px = positions[originalIndex * 3];
+    //                     const py = positions[originalIndex * 3 + 1];
+    //                     const pz = positions[originalIndex * 3 + 2];
+
+    //                     // Create a unique key for this vertex
+    //                     const key = `${px.toFixed(3)},${py.toFixed(3)},${pz.toFixed(3)}`;
+
+    //                     let newIndex;
+    //                     if (!vertexMap.has(key)) {
+    //                         newIndex = uniquePositions.length / 3;
+    //                         vertexMap.set(key, newIndex);
+
+    //                         // Add position
+    //                         uniquePositions.push(px, py, pz);
+
+    //                         // Add normal if available
+    //                         if (normals) {
+    //                             uniqueNormals.push(
+    //                                 normals[originalIndex * 3],
+    //                                 normals[originalIndex * 3 + 1],
+    //                                 normals[originalIndex * 3 + 2]
+    //                             );
+    //                         }
+    //                     } else {
+    //                         newIndex = vertexMap.get(key);
+    //                     }
+
+    //                     triangle.push(newIndex);
+    //                 }
+
+    //                 // Only add valid triangles
+    //                 if (triangle[0] !== triangle[1] && triangle[1] !== triangle[2] && triangle[2] !== triangle[0]) {
+    //                     newIndices.push(...triangle);
+    //                 }
+    //             }
+
+    //             // Ensure we have a valid number of indices
+    //             if (newIndices.length % 3 !== 0) {
+    //                 console.warn(`Invalid number of indices for mesh ${mesh.name}: ${newIndices.length}`);
+    //                 return null;
+    //             }
+
+    //             // Create vertex data and apply to mesh
+    //             const vertexData = new BABYLON.VertexData();
+    //             vertexData.positions = new Float32Array(uniquePositions);
+    //             if (uniqueNormals.length > 0) {
+    //                 vertexData.normals = new Float32Array(uniqueNormals);
+    //             }
+    //             vertexData.indices = new Uint32Array(newIndices);
+
+    //             try {
+    //                 vertexData.applyToMesh(exportMesh);
+    //             } catch (error) {
+    //                 console.error(`Error applying vertex data to mesh ${mesh.name}:`, error);
+    //                 return null;
+    //             }
+
+    //             // Copy transforms from original mesh
+    //             exportMesh.position.copyFrom(mesh.position);
+    //             exportMesh.rotation.copyFrom(mesh.rotation);
+    //             exportMesh.scaling.copyFrom(mesh.scaling);
+
+    //             // Apply material
+    //             const material = new BABYLON.StandardMaterial(`material_${index}`, tempScene);
+    //             material.diffuseColor = new BABYLON.Color3(0.7, 0.7, 0.7);
+    //             exportMesh.material = material;
+
+    //             return exportMesh;
+    //         }).filter(mesh => mesh !== null);
+
+    //         if (exportMeshes.length === 0) {
+    //             throw new Error("No valid meshes to export");
+    //         }
+
+    //         await tempScene.whenReadyAsync();
+
+    //         // Export options
+    //         const options = {
+    //             shouldExportNode: (node) => exportMeshes.includes(node),
+    //             exportWithoutWaitingForScene: true,
+    //             includeCoordinateSystemConversionNodes: false,
+    //             exportTextures: false,
+    //             truncateDrawRange: true,
+    //             binary: true,
+    //             preserveIndices: true,
+    //             compressVertices: true
+    //         };
+
+    //         // Export all meshes to GLB
+    //         const serializedGLB = await GLTF2Export.GLBAsync(tempScene, "reduced_model", options);
+    //         const glbBlob = serializedGLB.glTFFiles['reduced_model.glb'];
+
+    //         if (!glbBlob || !(glbBlob instanceof Blob)) {
+    //             throw new Error("Export failed: Invalid blob data");
+    //         }
+
+    //         // Cleanup
+    //         tempScene.dispose();
+
+    //         return {
+    //             blob: glbBlob,
+    //             size: glbBlob.size
+    //         };
+    //     } catch (error) {
+    //         console.error("Error during export:", error);
+    //         throw error;
+    //     }
     // };
 
-    // const handleFlyCamera = () => {
-    //     if (!scene || !scene.activeCamera) return;
+    const downloadmesh = async () => {
+        console.log('Total lpoly meshes to export:', downloadMeshes.mesh1.length);
+        console.log('Total mpoly meshes to export:', downloadMeshes.mesh2.length);
+        console.log('Total hpoly meshes to export:', downloadMeshes.mesh3.length);
 
-    //     // Store current camera position and target
-    //     const cameraPosition = scene.activeCamera.position.clone();
-    //     const cameraTarget = scene.activeCamera.target ?
-    //         scene.activeCamera.target.clone() :
-    //         scene.activeCamera.getTarget().clone();
+        if (downloadMeshes.mesh1 && downloadMeshes.mesh1.length > 0) {
+            try {
+                const validMeshes = downloadMeshes.mesh1.filter(mesh =>
+                    mesh && mesh.geometry && mesh.isEnabled !== false
+                );
 
-    //     // Remove old camera
-    //     scene.activeCamera.dispose();
+                console.log('Valid meshes for export:', validMeshes.length);
 
-    //     // Create new Free camera
-    //     camera = new BABYLON.FreeCamera("flyCamera", cameraPosition, scene);
-    //     camera.setTarget(cameraTarget);
+                if (validMeshes.length === 0) {
+                    throw new Error("No valid meshes to export");
+                }
 
-    //     // Camera settings
-    //     camera.speed = 0.5;
-    //     camera.inertia = 0.9;
-    //     camera.angularSensibility = 1000;
-    //     camera.minZ = 0.001;
+                const glbData = await exportGLB(validMeshes);
 
-    //     camera.attachControl(canvasRef.current, true);
-    //     scene.activeCamera = camera;
+                if (glbData && glbData.blob) {
+                    const url = URL.createObjectURL(glbData.blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'lpoly_multiple_meshes.glb';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
 
-    //     // Add observer for LOD updates
-    //     camera.onViewMatrixChangedObservable.add(() => {
-    //         updateLODVisibility();
-    //     });
-    // };
+                    console.log(`Successfully exported ${validMeshes.length} meshes, total size: ${(glbData.size / 1024 / 1024).toFixed(2)}MB`);
+
+                    // downloadButton.textContent = 'Download Complete';
+                    // setTimeout(() => {
+                    //     downloadButton.textContent = 'Download Model';
+                    //     downloadButton.disabled = false;
+                    // }, 2000);
+                }
+            } catch (error) {
+                console.error("Download failed:", error);
+                // downloadButton.textContent = 'Export Failed';
+                // setTimeout(() => {
+                //     downloadButton.textContent = 'Download Model';
+                //     downloadButton.disabled = false;
+                // }, 2000);
+            }
+        } else {
+            console.warn("No meshes available to download");
+        }
+
+        if (downloadMeshes.mesh2 && downloadMeshes.mesh2.length > 0) {
+            try {
+                const validMeshes = downloadMeshes.mesh2.filter(mesh =>
+                    mesh && mesh.geometry && mesh.isEnabled !== false
+                );
+
+                console.log('Valid meshes for export:', validMeshes.length);
+
+                if (validMeshes.length === 0) {
+                    throw new Error("No valid meshes to export");
+                }
+
+                const glbData = await exportGLB(validMeshes);
+
+                if (glbData && glbData.blob) {
+                    const url = URL.createObjectURL(glbData.blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'mpoly_multiple_meshes.glb';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+
+                    console.log(`Successfully exported ${validMeshes.length} meshes, total size: ${(glbData.size / 1024 / 1024).toFixed(2)}MB`);
+
+                    // downloadButton.textContent = 'Download Complete';
+                    // setTimeout(() => {
+                    //     downloadButton.textContent = 'Download Model';
+                    //     downloadButton.disabled = false;
+                    // }, 2000);
+                }
+            } catch (error) {
+                console.error("Download failed:", error);
+                // downloadButton.textContent = 'Export Failed';
+                // setTimeout(() => {
+                //     downloadButton.textContent = 'Download Model';
+                //     downloadButton.disabled = false;
+                // }, 2000);
+            }
+        } else {
+            console.warn("No meshes available to download");
+        }
+
+        if (downloadMeshes.mesh3 && downloadMeshes.mesh3.length > 0) {
+            try {
+                const validMeshes = downloadMeshes.mesh3.filter(mesh =>
+                    mesh && mesh.geometry && mesh.isEnabled !== false
+                );
+
+                console.log('Valid meshes for export:', validMeshes.length);
+
+                if (validMeshes.length === 0) {
+                    throw new Error("No valid meshes to export");
+                }
+
+                const glbData = await exportGLB(validMeshes);
+
+                if (glbData && glbData.blob) {
+                    const url = URL.createObjectURL(glbData.blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'hpoly_multiple_meshes.glb';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+
+                    console.log(`Successfully exported ${validMeshes.length} meshes, total size: ${(glbData.size / 1024 / 1024).toFixed(2)}MB`);
+
+                    // downloadButton.textContent = 'Download Complete';
+                    // setTimeout(() => {
+                    //     downloadButton.textContent = 'Download Model';
+                    //     downloadButton.disabled = false;
+                    // }, 2000);
+                }
+            } catch (error) {
+                console.error("Download failed:", error);
+                // downloadButton.textContent = 'Export Failed';
+                // setTimeout(() => {
+                //     downloadButton.textContent = 'Download Model';
+                //     downloadButton.disabled = false;
+                // }, 2000);
+            }
+        } else {
+            console.warn("No meshes available to download");
+        }
+    }
 
 
     useEffect(() => {
@@ -975,23 +1420,7 @@ function Fbxload() {
                 updateLODVisibility();
             });
 
-            // // Initialize UI
-            // const advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
-            // const filePanel = new BABYLON.GUI.StackPanel();
-            // filePanel.width = "200px";
-            // filePanel.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
-            // filePanel.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_TOP;
-            // filePanel.top = "10px";
-            // filePanel.left = "10px";
-            // advancedTexture.addControl(filePanel);
-            // // Add camera control buttons to the file panel
-            // const buttonOrbit = BABYLON.GUI.Button.CreateSimpleButton("orbit", "Orbit Camera");
-            // buttonOrbit.width = "150px";
-            // buttonOrbit.height = "40px";
-            // buttonOrbit.color = "white";
-            // buttonOrbit.cornerRadius = 20;
-            // buttonOrbit.background = "green";
-            // filePanel.addControl(buttonOrbit);
+
         }
 
         // Reset tracking structures
@@ -1116,88 +1545,18 @@ function Fbxload() {
                 Select FBX File
             </button>
             <canvas ref={canvasRef} style={{ width: '100%', height: '100%' }} />
-            {/* <CameraControls
+            <CameraControls
                 scene={scene}
                 canvas={canvasRef.current}
                 updateLODVisibility={updateLODVisibility}
                 maxDistance={maxDistance}
-            /> */}
+            />
             {/* <div id='rightopt' style={{ right: '0px' }} >
-                <i class="fa-solid fa-circle-info  button " title='Tag Info' onClick={handleOrbitCamera} ></i>
-                <i class="fa fa-search-plus button" title='Zoomin' onClick={handleFlyCamera}></i>
+                <i class="fa-solid fa-circle-info  button " title='Tag Info'  ></i>
+                <i class="fa fa-search-plus button" title='Zoomin' ></i>
+                <i class="fa fa-search-plus button" title='Download' onClick={downloadmesh}></i>
             </div> */}
-            {/* {cumulativeBoundingBox && (
-                <div>
-                    <h2>Cumulative Bounding Box:</h2>
-                    <p>
-                        Min: ({cumulativeBoundingBox.min.x.toFixed(2)}, {cumulativeBoundingBox.min.y.toFixed(2)}, {cumulativeBoundingBox.min.z.toFixed(2)})
-                    </p>
-                    <p>
-                        Max: ({cumulativeBoundingBox.max.x.toFixed(2)}, {cumulativeBoundingBox.max.y.toFixed(2)}, {cumulativeBoundingBox.max.z.toFixed(2)})
-                    </p>
-                </div>
-            )}
-            {boundingBoxes.length > 0 && (
-                <div>
-                    <h2>Individual Bounding Boxes:</h2>
-                    {boundingBoxes.map((fileResult, index) => (
-                        <div key={index}>
-                            <h3>{fileResult.filePath}</h3>
-                            {fileResult.error ? (
-                                <p>Error: {fileResult.error}</p>
-                            ) : (
-                                <ul>
-                                    {fileResult.boundingBoxes.map((box, boxIndex) => (
-                                        <li key={boxIndex}>
-                                            {box.meshName}: Min ({box.min.x.toFixed(2)}, {box.min.y.toFixed(2)}, {box.min.z.toFixed(2)}),
-                                            Max ({box.max.x.toFixed(2)}, {box.max.y.toFixed(2)}, {box.max.z.toFixed(2)})
-                                        </li>
-                                    ))}
-                                </ul>
-                            )}
-                        </div>
-                    ))}
-                </div>
-            )} */}
 
-            {/* {octreeData && originalMeshesData.length > 0 && (
-                <Octreestorage
-                    convertedModels={[
-                        ...originalMeshesData.map(data => ({
-                            fileName: `original_${data.name}`,
-                            data: {
-                                ...data,
-                                meshType: 'original'  // Add type identifier
-                            }
-                        })),
-                        ...mergedMeshesData.map(data => ({
-                            fileName: `merged_${data.name}`,
-                            data: {
-                                ...data,
-                                meshType: 'merged'    // Add type identifier
-                            }
-                        }))
-                    ]}
-                    octree={octreeData}
-                />
-            )}
- */}
-
-            {/* {octreeData && originalMeshesData.length > 0 && (
-                <Octreestorage
-                    convertedModels={[
-                        ...originalMeshesData.map(data => ({
-                            fileName: `original_${data.name}`,
-                            data: data
-                        })),
-                        ...mergedMeshesData.map(data => ({
-                            fileName: `merged_${data.name}`,
-                            data: data
-                        }))
-                    ]}
-                    octree={octreeData}
-                />
-            )} */}
         </div>
     );
 }
