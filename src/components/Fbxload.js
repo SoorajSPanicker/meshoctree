@@ -38,6 +38,9 @@ function Fbxload() {
 
     const [boundingBoxes, setBoundingBoxes] = useState([]);
     const [cumulativeBoundingBox, setCumulativeBoundingBox] = useState(null);
+    const [mergemeshdatas, setmergemeshdatas] = useState([])
+    const [orimeshdatas, setorimeshdatas] = useState([])
+    const [octreedatas, setoctreedatas] = useState({})
     let loadedMeshes = [];
     let allLoadedMeshes = [];
     let Fullmeshes = [];
@@ -714,6 +717,7 @@ function Fbxload() {
         });
     };
 
+
     const calculateNodeCenter = (nodeNum) => {
         const nodeMeshes = nodeContents.get(nodeNum);
         if (!nodeMeshes || nodeMeshes.length === 0) return null;
@@ -744,33 +748,46 @@ function Fbxload() {
         let currentTotalFaces = 0;
         let meshesToDisplay = new Set();
 
-        // First pass: Calculate total faces and collect eligible meshes for depths 1-3
+        // Modified function to process meshes based on coverage
         const processMeshesForFaceCount = (depth) => {
             const nodesAtDepth = nodeNumbersByDepth[depth] || [];
-            let canAddMore = true;
+
+            // Create array of all eligible meshes with their coverage values
+            let meshesWithCoverage = [];
 
             for (const nodeNum of nodesAtDepth) {
-                if (!canAddMore) break;
-
                 const nodeMeshes = nodeContents.get(nodeNum) || [];
                 const mergedAngle20Meshes = nodeMeshes.filter(mesh =>
                     mesh.name.startsWith('merged_node_') &&
                     mesh.name.endsWith('_angle20')
                 );
 
-                for (const mesh of mergedAngle20Meshes) {
-                    const meshFaces = mesh.getTotalVertices() / 3;
-                    if (currentTotalFaces + meshFaces <= FACE_LIMIT1) {
-                        meshesToDisplay.add({
-                            nodeNum,
-                            mesh,
-                            faces: meshFaces
-                        });
-                        currentTotalFaces += meshFaces;
-                    } else {
-                        canAddMore = false;
-                        break;
-                    }
+                // Calculate coverage for each mesh and store with mesh info
+                mergedAngle20Meshes.forEach(mesh => {
+                    const coverage = calculateScreenCoverage(mesh, camera, engine);
+                    meshesWithCoverage.push({
+                        nodeNum,
+                        mesh,
+                        coverage,
+                        faces: mesh.getTotalVertices() / 3
+                    });
+                });
+            }
+
+            // Sort meshes by coverage (highest first)
+            meshesWithCoverage.sort((a, b) => b.coverage - a.coverage);
+
+            // Process meshes in order of coverage
+            for (const meshInfo of meshesWithCoverage) {
+                if (currentTotalFaces + meshInfo.faces <= FACE_LIMIT1) {
+                    meshesToDisplay.add({
+                        nodeNum: meshInfo.nodeNum,
+                        mesh: meshInfo.mesh,
+                        faces: meshInfo.faces
+                    });
+                    currentTotalFaces += meshInfo.faces;
+                } else {
+                    break;
                 }
             }
 
@@ -785,6 +802,7 @@ function Fbxload() {
         console.log(`Final face count: ${currentTotalFaces}`);
         console.log(`Number of meshes to process: ${meshesToDisplay.size}`);
 
+        // Rest of the function remains the same...
         // Hide all meshes first
         scene.meshes.forEach(mesh => {
             if (!mesh.name.startsWith("octreeVisBox_")) {
@@ -799,7 +817,6 @@ function Fbxload() {
             for (const nodeNum of nodesAtDepth) {
                 const distance = calculateDistanceToNode(nodeNum, camera);
 
-                // Check if this node is close enough for high detail
                 if (distance <= maxDistance * 0.5 && distance > 0) {
                     const nodeMeshes = nodeContents.get(nodeNum) || [];
                     const highDetailMeshes = nodeMeshes.filter(mesh =>
@@ -807,7 +824,6 @@ function Fbxload() {
                         mesh.name.endsWith('_angle5')
                     );
 
-                    // Show all high detail meshes in range
                     highDetailMeshes.forEach(mesh => {
                         mesh.material = yellowMaterial;
                         mesh.isVisible = true;
@@ -823,12 +839,10 @@ function Fbxload() {
             const distance = calculateDistanceToNode(nodeNum, camera);
             const nodeMeshes = nodeContents.get(nodeNum) || [];
 
-            // Skip high detail range
             if (distance <= maxDistance * 0.5 && distance > 0) {
                 continue;
             }
 
-            // Hide all meshes in this node first
             nodeMeshes.forEach(mesh => {
                 mesh.isVisible = false;
                 mesh.setEnabled(false);
@@ -837,7 +851,6 @@ function Fbxload() {
             let meshToShow = null;
             let materialToUse = null;
 
-            // Distance-based LOD selection with material for medium and low detail
             if (distance > maxDistance * 0.75) {
                 meshToShow = nodeMeshes.find(m =>
                     m.name.startsWith('merged_node_') &&
@@ -859,7 +872,6 @@ function Fbxload() {
                 console.log(`Showing ${meshToShow.name} at distance ${distance.toFixed(2)} with ${materialToUse.name}`);
             }
         }
-
     };
     const exportGLB = async (meshes) => {
         if (!meshes || meshes.length === 0) return null;
@@ -1366,8 +1378,464 @@ function Fbxload() {
             console.warn("No meshes available to download");
         }
     }
+    // const collectMergedMeshInfo = () => {
+    //     // Create an object to store mesh information by depth
+    //     const meshInfoByDepth = {
+    //         depth1: [],
+    //         depth2: [],
+    //         depth3: []
+    //     };
 
+    //     // Helper function to get vertex and index data
+    //     const getGeometryData = (mesh) => {
+    //         const positions = mesh.getVerticesData(BABYLON.VertexBuffer.PositionKind);
+    //         const normals = mesh.getVerticesData(BABYLON.VertexBuffer.NormalKind);
+    //         const indices = mesh.getIndices();
 
+    //         return {
+    //             positions: positions ? Array.from(positions) : null,
+    //             normals: normals ? Array.from(normals) : null,
+    //             indices: indices ? Array.from(indices) : null,
+    //             vertexCount: positions ? positions.length / 3 : 0,
+    //             faceCount: indices ? indices.length / 3 : 0
+    //         };
+    //     };
+
+    //     // Helper function to get bounding box information
+    //     const getBoundingBoxInfo = (mesh) => {
+    //         const boundingBox = mesh.getBoundingInfo().boundingBox;
+    //         return {
+    //             minimum: {
+    //                 x: boundingBox.minimumWorld.x,
+    //                 y: boundingBox.minimumWorld.y,
+    //                 z: boundingBox.minimumWorld.z
+    //             },
+    //             maximum: {
+    //                 x: boundingBox.maximumWorld.x,
+    //                 y: boundingBox.maximumWorld.y,
+    //                 z: boundingBox.maximumWorld.z
+    //             },
+    //             center: {
+    //                 x: boundingBox.centerWorld.x,
+    //                 y: boundingBox.centerWorld.y,
+    //                 z: boundingBox.centerWorld.z
+    //             }
+    //         };
+    //     };
+
+    //     // Process each depth level
+    //     for (let depth = 1; depth <= 3; depth++) {
+    //         const nodesAtDepth = nodeNumbersByDepth[depth] || [];
+
+    //         for (const nodeNum of nodesAtDepth) {
+    //             const nodeMeshes = nodeContents.get(nodeNum) || [];
+
+    //             // Filter for merged meshes only
+    //             const mergedMeshes = nodeMeshes.filter(mesh =>
+    //                 mesh && mesh.name && mesh.name.startsWith('merged_node_')
+    //             );
+
+    //             // Collect information for each merged mesh
+    //             mergedMeshes.forEach(mesh => {
+    //                 const geometryData = getGeometryData(mesh);
+    //                 const boundingBoxInfo = getBoundingBoxInfo(mesh);
+
+    //                 const meshInfo = {
+    //                     // Basic information
+    //                     id: mesh.id,
+    //                     name: mesh.name,
+    //                     nodeId: nodeNum,
+    //                     depth: depth,
+
+    //                     // Transform information
+    //                     position: {
+    //                         x: mesh.position.x,
+    //                         y: mesh.position.y,
+    //                         z: mesh.position.z
+    //                     },
+    //                     rotation: {
+    //                         x: mesh.rotation.x,
+    //                         y: mesh.rotation.y,
+    //                         z: mesh.rotation.z
+    //                     },
+    //                     scaling: {
+    //                         x: mesh.scaling.x,
+    //                         y: mesh.scaling.y,
+    //                         z: mesh.scaling.z
+    //                     },
+
+    //                     // Geometry information
+    //                     geometry: geometryData,
+    //                     boundingBox: boundingBoxInfo,
+
+    //                     // Material information
+    //                     materialName: mesh.material ? mesh.material.name : null,
+
+    //                     // Mesh properties
+    //                     isVisible: mesh.isVisible,
+    //                     isEnabled: mesh.isEnabled,
+
+    //                     // Additional metadata
+    //                     creationTime: new Date().toISOString(),
+    //                     lodLevel: mesh.name.includes('_angle20') ? 'low' :
+    //                         mesh.name.includes('_angle10') ? 'medium' : 'high'
+    //                 };
+
+    //                 // Add to appropriate depth array
+    //                 meshInfoByDepth[`depth${depth}`].push(meshInfo);
+    //             });
+    //         }
+    //     }
+
+    //     // Add summary information
+    //     const summary = {
+    //         totalMeshes: {
+    //             depth1: meshInfoByDepth.depth1.length,
+    //             depth2: meshInfoByDepth.depth2.length,
+    //             depth3: meshInfoByDepth.depth3.length
+    //         },
+    //         collectionTimestamp: new Date().toISOString()
+    //     };
+
+    //     return {
+    //         meshInfoByDepth,
+    //         summary
+    //     };
+    // };
+
+    const collectMergedMeshInfo = () => {
+        // Structure to store mesh information by depth
+        // const meshInfoByDepth = {
+        //     depth1: [],
+        //     depth2: [],
+        //     depth3: []
+        // };
+        const meshInfoByDepth = []
+
+        // Helper function to collect vertex data from a mesh
+        const collectVertexData = (mesh) => {
+            if (!mesh || !mesh.geometry) return null;
+
+            return {
+                positions: Array.from(mesh.getVerticesData(BABYLON.VertexBuffer.PositionKind) || []),
+                normals: Array.from(mesh.getVerticesData(BABYLON.VertexBuffer.NormalKind) || []),
+                indices: Array.from(mesh.getIndices() || []),
+                uvs: Array.from(mesh.getVerticesData(BABYLON.VertexBuffer.UVKind) || [])
+            };
+        };
+
+        // Helper function to collect transform data
+        const collectTransformData = (mesh) => {
+            return {
+                position: {
+                    x: mesh.position.x,
+                    y: mesh.position.y,
+                    z: mesh.position.z
+                },
+                rotation: {
+                    x: mesh.rotation.x,
+                    y: mesh.rotation.y,
+                    z: mesh.rotation.z
+                },
+                scaling: {
+                    x: mesh.scaling.x,
+                    y: mesh.scaling.y,
+                    z: mesh.scaling.z
+                },
+                worldMatrix: Array.from(mesh.getWorldMatrix().toArray())
+            };
+        };
+
+        // Helper function to collect bounding box information
+        const collectBoundingInfo = (mesh) => {
+            const boundingInfo = mesh.getBoundingInfo();
+            return {
+                minimum: {
+                    x: boundingInfo.minimum.x,
+                    y: boundingInfo.minimum.y,
+                    z: boundingInfo.minimum.z
+                },
+                maximum: {
+                    x: boundingInfo.maximum.x,
+                    y: boundingInfo.maximum.y,
+                    z: boundingInfo.maximum.z
+                },
+                boundingSphere: {
+                    center: {
+                        x: boundingInfo.boundingSphere.centerWorld.x,
+                        y: boundingInfo.boundingSphere.centerWorld.y,
+                        z: boundingInfo.boundingSphere.centerWorld.z
+                    },
+                    radius: boundingInfo.boundingSphere.radiusWorld
+                }
+            };
+        };
+
+        // Iterate through each depth
+        for (let depth = 1; depth <= 3; depth++) {
+            const nodesAtThisDepth = nodeNumbersByDepth[depth] || [];
+
+            for (const nodeNum of nodesAtThisDepth) {
+                const nodeMeshes = nodeContents.get(nodeNum) || [];
+                const mergedMeshes = nodeMeshes.filter(mesh =>
+                    mesh && mesh.name && mesh.name.startsWith('merged_node_')
+                );
+
+                for (const mesh of mergedMeshes) {
+                    try {
+                        const meshInfo = {
+                            name: mesh.name,
+                            nodeNumber: nodeNum,
+                            depth: depth,
+                            parentNode: nodeParents.get(nodeNum),
+                            vertexData: collectVertexData(mesh),
+                            transforms: collectTransformData(mesh),
+                            boundingInfo: collectBoundingInfo(mesh),
+                            metadata: {
+                                id: mesh.uniqueId,
+                                isVisible: mesh.isVisible,
+                                isEnabled: mesh.isEnabled,
+                                renderingGroupId: mesh.renderingGroupId,
+                                material: mesh.material ? {
+                                    name: mesh.material.name,
+                                    id: mesh.material.uniqueId,
+                                    diffuseColor: mesh.material.diffuseColor ? {
+                                        r: mesh.material.diffuseColor.r,
+                                        g: mesh.material.diffuseColor.g,
+                                        b: mesh.material.diffuseColor.b
+                                    } : null
+                                } : null,
+                                geometryInfo: {
+                                    totalVertices: mesh.getTotalVertices(),
+                                    totalIndices: mesh.getTotalIndices(),
+                                    faceCount: mesh.getTotalIndices() / 3
+                                }
+                            }
+                        };
+                        meshInfoByDepth.push(meshInfo);
+                    } catch (error) {
+                        console.error(`Error collecting info for mesh ${mesh.name}:`, error);
+                    }
+                }
+            }
+        }
+
+        // Revised summary calculation
+        const summary = {
+            totalMeshes: meshInfoByDepth.length,
+            totalVertices: meshInfoByDepth.reduce((sum, mesh) => sum + mesh.metadata.geometryInfo.totalVertices, 0),
+            totalFaces: meshInfoByDepth.reduce((sum, mesh) => sum + mesh.metadata.geometryInfo.faceCount, 0)
+        };
+
+        return {
+            meshes: meshInfoByDepth,
+            summary
+        };
+    };
+
+    // Function to collect information about original meshes in depth 4
+    const collectOriginalMeshInfo = () => {
+        const depth4MeshInfo = [];
+
+        // Get all nodes at depth 4
+        const nodesAtDepth4 = nodeNumbersByDepth[4] || [];
+
+        // Helper function to collect vertex data from a mesh
+        const collectVertexData = (mesh) => {
+            if (!mesh || !mesh.geometry) return null;
+
+            return {
+                positions: Array.from(mesh.getVerticesData(BABYLON.VertexBuffer.PositionKind) || []),
+                normals: Array.from(mesh.getVerticesData(BABYLON.VertexBuffer.NormalKind) || []),
+                indices: Array.from(mesh.getIndices() || []),
+                uvs: Array.from(mesh.getVerticesData(BABYLON.VertexBuffer.UVKind) || [])
+            };
+        };
+
+        // Helper function to collect transform data
+        const collectTransformData = (mesh) => {
+            return {
+                position: {
+                    x: mesh.position.x,
+                    y: mesh.position.y,
+                    z: mesh.position.z
+                },
+                rotation: {
+                    x: mesh.rotation.x,
+                    y: mesh.rotation.y,
+                    z: mesh.rotation.z
+                },
+                scaling: {
+                    x: mesh.scaling.x,
+                    y: mesh.scaling.y,
+                    z: mesh.scaling.z
+                },
+                worldMatrix: Array.from(mesh.getWorldMatrix().toArray())
+            };
+        };
+
+        // Helper function to collect bounding box information
+        const collectBoundingInfo = (mesh) => {
+            const boundingInfo = mesh.getBoundingInfo();
+            return {
+                minimum: {
+                    x: boundingInfo.minimum.x,
+                    y: boundingInfo.minimum.y,
+                    z: boundingInfo.minimum.z
+                },
+                maximum: {
+                    x: boundingInfo.maximum.x,
+                    y: boundingInfo.maximum.y,
+                    z: boundingInfo.maximum.z
+                },
+                boundingSphere: {
+                    center: {
+                        x: boundingInfo.boundingSphere.centerWorld.x,
+                        y: boundingInfo.boundingSphere.centerWorld.y,
+                        z: boundingInfo.boundingSphere.centerWorld.z
+                    },
+                    radius: boundingInfo.boundingSphere.radiusWorld
+                }
+            };
+        };
+
+        // Process each node at depth 4
+        for (const nodeNum of nodesAtDepth4) {
+            const nodeMeshes = nodeContents.get(nodeNum) || [];
+
+            // Filter for original meshes (those that don't start with 'merged_node_')
+            const originalMeshes = nodeMeshes.filter(mesh =>
+                mesh && mesh.name && !mesh.name.startsWith('merged_node_')
+            );
+
+            for (const mesh of originalMeshes) {
+                try {
+                    const meshInfo = {
+                        name: mesh.name,
+                        nodeNumber: nodeNum,
+                        depth: 4,
+                        parentNode: nodeParents.get(nodeNum),
+                        vertexData: collectVertexData(mesh),
+                        transforms: collectTransformData(mesh),
+                        boundingInfo: collectBoundingInfo(mesh),
+                        metadata: {
+                            id: mesh.uniqueId,
+                            isVisible: mesh.isVisible,
+                            isEnabled: mesh.isEnabled,
+                            renderingGroupId: mesh.renderingGroupId,
+                            material: mesh.material ? {
+                                name: mesh.material.name,
+                                id: mesh.material.uniqueId,
+                                diffuseColor: mesh.material.diffuseColor ? {
+                                    r: mesh.material.diffuseColor.r,
+                                    g: mesh.material.diffuseColor.g,
+                                    b: mesh.material.diffuseColor.b
+                                } : null
+                            } : null,
+                            geometryInfo: {
+                                totalVertices: mesh.getTotalVertices(),
+                                totalIndices: mesh.getTotalIndices(),
+                                faceCount: mesh.getTotalIndices() / 3
+                            }
+                        }
+                    };
+
+                    depth4MeshInfo.push(meshInfo);
+                } catch (error) {
+                    console.error(`Error collecting info for mesh ${mesh.name}:`, error);
+                }
+            }
+        }
+
+        return {
+            meshes: depth4MeshInfo,
+            summary: {
+                totalMeshes: depth4MeshInfo.length,
+                totalVertices: depth4MeshInfo.reduce((sum, mesh) => sum + mesh.metadata.geometryInfo.totalVertices, 0),
+                totalFaces: depth4MeshInfo.reduce((sum, mesh) => sum + mesh.metadata.geometryInfo.faceCount, 0)
+            }
+        };
+    };
+
+    // Function to collect octree information
+    const collectOctreeInfo = () => {
+        const octreeInfo = {
+            structure: [],
+            metadata: {
+                maxDepth: maxDepth,
+                minSize: minSize,
+                totalNodes: 0,
+                nodesByDepth: {}
+            }
+        };
+
+        // Helper function to collect node information recursively
+        const collectNodeInfo = (nodeNum) => {
+            const depth = nodeDepths.get(nodeNum);
+            const parentNodeNum = nodeParents.get(nodeNum);
+            const nodeMeshes = nodeContents.get(nodeNum) || [];
+
+            // Get block bounds from a mesh in the node
+            let blockBounds = null;
+            for (const mesh of nodeMeshes) {
+                if (mesh && mesh.getBoundingInfo) {
+                    const boundingInfo = mesh.getBoundingInfo();
+                    blockBounds = {
+                        minimum: {
+                            x: boundingInfo.minimum.x,
+                            y: boundingInfo.minimum.y,
+                            z: boundingInfo.minimum.z
+                        },
+                        maximum: {
+                            x: boundingInfo.maximum.x,
+                            y: boundingInfo.maximum.y,
+                            z: boundingInfo.maximum.z
+                        }
+                    };
+                    break;
+                }
+            }
+
+            // Collect node information
+            const nodeInfo = {
+                nodeNumber: nodeNum,
+                depth: depth,
+                parentNode: parentNodeNum,
+                bounds: blockBounds,
+                meshCount: nodeMeshes.length,
+                meshTypes: {
+                    original: nodeMeshes.filter(m => !m.name.startsWith('merged_node_')).length,
+                    merged: nodeMeshes.filter(m => m.name.startsWith('merged_node_')).length
+                },
+                childNodes: nodeNumbersByDepth[depth + 1]?.filter(childNum =>
+                    nodeParents.get(childNum) === nodeNum
+                ) || []
+            };
+
+            // Add to structure array
+            octreeInfo.structure.push(nodeInfo);
+
+            // Update metadata
+            octreeInfo.metadata.totalNodes++;
+            octreeInfo.metadata.nodesByDepth[depth] =
+                (octreeInfo.metadata.nodesByDepth[depth] || 0) + 1;
+
+            // Process child nodes
+            nodeInfo.childNodes.forEach(childNum => {
+                collectNodeInfo(childNum);
+            });
+        };
+
+        // Start collection from root node (nodeNumber 1)
+        collectNodeInfo(1);
+
+        // Add additional metadata
+        octreeInfo.metadata.averageMeshesPerNode =
+            octreeInfo.structure.reduce((sum, node) => sum + node.meshCount, 0) /
+            octreeInfo.metadata.totalNodes;
+
+        return octreeInfo;
+    };
     useEffect(() => {
 
         if (canvasRef.current && !sceneRef.current) {
@@ -1522,6 +1990,15 @@ function Fbxload() {
                         await mergeMeshesByAngle();
                         // Update UI and visualizations
                         updateLODVisibility();
+                        const mergemeshdata = collectMergedMeshInfo()
+                        console.log(mergemeshdata);
+                        setmergemeshdatas(mergemeshdata.meshes)
+                        const orimeshdata = collectOriginalMeshInfo()
+                        console.log(orimeshdata);
+                        setorimeshdatas(orimeshdata.meshes)
+                        const octreedata = collectOctreeInfo()
+                        console.log(octreedata);
+                        setoctreedatas(octreedata)
                     }
                 }
             } catch (error) {
@@ -1545,17 +2022,34 @@ function Fbxload() {
                 Select FBX File
             </button>
             <canvas ref={canvasRef} style={{ width: '100%', height: '100%' }} />
-            <CameraControls
+            {/* <CameraControls
                 scene={scene}
                 canvas={canvasRef.current}
                 updateLODVisibility={updateLODVisibility}
                 maxDistance={maxDistance}
-            />
-            {/* <div id='rightopt' style={{ right: '0px' }} >
+            /> */}
+            <div id='rightopt' style={{ right: '0px' }} >
                 <i class="fa-solid fa-circle-info  button " title='Tag Info'  ></i>
                 <i class="fa fa-search-plus button" title='Zoomin' ></i>
                 <i class="fa fa-search-plus button" title='Download' onClick={downloadmesh}></i>
-            </div> */}
+            </div>
+            {octreedatas && orimeshdatas.length > 0 && (
+                <Octreestorage
+                    convertedModels={[
+                        ...orimeshdatas.map(data => ({
+                            fileName: data.name,
+                            data: data
+                        })),
+                        ...mergemeshdatas.map(data => ({
+                            fileName: data.name,
+                            data: data
+                        }))
+                    ]}
+                    octree={octreedatas}
+                />
+            )}
+
+
 
         </div>
     );
