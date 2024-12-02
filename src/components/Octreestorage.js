@@ -234,12 +234,40 @@ const Octreestorage = ({ convertedModels, octree }) => {
         };
     };
 
+    // const serializeOctree = (octree) => {
+    //     return {
+    //         structure: octree.structure.map(node => ({
+    //             nodeNumber: node.nodeNumber,
+    //             depth: node.depth,
+    //             parentNode: node.parentNode,
+    //             bounds: node.bounds ? {
+    //                 minimum: { ...node.bounds.minimum },
+    //                 maximum: { ...node.bounds.maximum }
+    //             } : null,
+    //             meshCount: node.meshCount,
+    //             meshTypes: {
+    //                 original: node.meshTypes.original,
+    //                 merged: node.meshTypes.merged
+    //             },
+    //             childNodes: [...node.childNodes]
+    //         })),
+    //         metadata: {
+    //             maxDepth: octree.metadata.maxDepth,
+    //             minSize: octree.metadata.minSize,
+    //             totalNodes: octree.metadata.totalNodes,
+    //             nodesByDepth: { ...octree.metadata.nodesByDepth },
+    //             averageMeshesPerNode: octree.metadata.averageMeshesPerNode
+    //         }
+    //     };
+    // };
+
     const serializeOctree = (octree) => {
         return {
             structure: octree.structure.map(node => ({
                 nodeNumber: node.nodeNumber,
                 depth: node.depth,
                 parentNode: node.parentNode,
+                // The bounds should be for the entire node, not per mesh
                 bounds: node.bounds ? {
                     minimum: { ...node.bounds.minimum },
                     maximum: { ...node.bounds.maximum }
@@ -253,14 +281,10 @@ const Octreestorage = ({ convertedModels, octree }) => {
             })),
             metadata: {
                 maxDepth: octree.metadata.maxDepth,
-                minSize: octree.metadata.minSize,
-                totalNodes: octree.metadata.totalNodes,
-                nodesByDepth: { ...octree.metadata.nodesByDepth },
-                averageMeshesPerNode: octree.metadata.averageMeshesPerNode
+                // ... other metadata
             }
         };
     };
-
     const saveToIndexedDB = async () => {
         try {
             setStorageStatus('Initializing storage...');

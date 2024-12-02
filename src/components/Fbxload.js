@@ -5,6 +5,7 @@ import * as BABYLON from '@babylonjs/core';
 import Octreestorage from './Octreestorage';
 import CameraControls from './CameraControls';
 import { GLTF2Export } from '@babylonjs/serializers/glTF';
+import Loadindexdb from './Loadindexdb';
 function Fbxload() {
     let nodesAtDepth;
     const maxDepth = 4;
@@ -41,6 +42,8 @@ function Fbxload() {
     const [mergemeshdatas, setmergemeshdatas] = useState([])
     const [orimeshdatas, setorimeshdatas] = useState([])
     const [octreedatas, setoctreedatas] = useState({})
+    const [sceneInstance, setSceneInstance] = useState(null);
+    const [cameraInstance, setCameraInstance] = useState(null);
     let loadedMeshes = [];
     let allLoadedMeshes = [];
     let Fullmeshes = [];
@@ -1804,8 +1807,7 @@ function Fbxload() {
                 bounds: blockBounds,
                 meshCount: nodeMeshes.length,
                 meshTypes: {
-                    original: nodeMeshes.filter(m => !m.name.startsWith('merged_node_')).length,
-                    merged: nodeMeshes.filter(m => m.name.startsWith('merged_node_')).length
+                    original: nodeMeshes.filter(m => !m.name.startsWith('merged_node_')).length
                 },
                 childNodes: nodeNumbersByDepth[depth + 1]?.filter(childNum =>
                     nodeParents.get(childNum) === nodeNum
@@ -1842,19 +1844,7 @@ function Fbxload() {
             engine = new BABYLON.Engine(canvasRef.current, true);
             scene = new BABYLON.Scene(engine);
             sceneRef.current = scene;
-
-            // Initialize materials after scene creation
-            greenMaterial = new BABYLON.StandardMaterial("greenMaterial", scene);
-            greenMaterial.diffuseColor = new BABYLON.Color3(0, 1, 0);
-
-            redMaterial = new BABYLON.StandardMaterial("redMaterial", scene);
-            redMaterial.diffuseColor = new BABYLON.Color3(1, 0, 0);
-
-            blueMaterial = new BABYLON.StandardMaterial("blueMaterial", scene);
-            blueMaterial.diffuseColor = new BABYLON.Color3(0, 0, 1);
-
-            yellowMaterial = new BABYLON.StandardMaterial("yellowMaterial", scene);
-            yellowMaterial.diffuseColor = new BABYLON.Color3(1, 1, 0);
+            setSceneInstance(scene);  // Add this line
 
             // Initialize camera
             camera = new BABYLON.ArcRotateCamera(
@@ -1873,7 +1863,7 @@ function Fbxload() {
             camera.panningSensibility = 100;
             camera.angularSensibilityX = 500;
             camera.angularSensibilityY = 500;
-
+            setCameraInstance(camera);  // Add this line
             // Add basic light
             new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
 
@@ -1937,18 +1927,29 @@ function Fbxload() {
                     // Loop through individualResults and load each file
                     for (const { filePath } of individualResults) {
                         console.log(`Loading file: ${filePath}`);
-                        const result = await BABYLON.SceneLoader.ImportMeshAsync("", "", filePath, scene);
+                        const result = await BABYLON.SceneLoader.ImportMeshAsync("", "", filePath, scene, (evt) => {
+                            // This callback runs while loading
+                            if (evt.meshes) {
+                                evt.meshes.forEach(mesh => {
+                                    mesh.isVisible = false;
+                                    mesh.setEnabled(false);
+                                });
+                            }
+                        });
 
-                        // Filter and process loaded meshes
+                        // Option 2: Set meshes invisible after loading
                         loadedMeshes = result.meshes.filter(mesh =>
                             mesh.name !== "__root__" &&
-                            mesh.isVisible &&
                             mesh.geometry
                         );
 
                         // Clean up animations and materials
                         scene.animationGroups.forEach(group => group.dispose());
                         loadedMeshes.forEach(mesh => {
+                            // Set mesh invisible
+                            mesh.isVisible = false;
+                            mesh.setEnabled(false);
+
                             if (mesh.material) {
                                 mesh.material.dispose();
                                 const simpleMaterial = new BABYLON.StandardMaterial("simpleMat", scene);
@@ -1958,9 +1959,47 @@ function Fbxload() {
                             }
                         });
 
-                        // Add the loaded meshes to the main array
-                        allLoadedMeshes.push(...loadedMeshes);
-                        Fullmeshes.push(...loadedMeshes)
+                        // // Add the loaded meshes to the main array
+                        // allLoadedMeshes.push(...loadedMeshes);
+                        Fullmeshes.push(...loadedMeshes);
+                        // Create simplified versions of each mesh
+                        for (const mesh of loadedMeshes) {
+                            try {
+                                // Create LOD versions with different angle thresholds
+                                const lod1 = simplifyMesh(mesh, 20);
+                                const lod2 = simplifyMesh(mesh, 10);
+                                const lod3 = simplifyMesh(mesh, 5);
+
+                                if (lod1) {
+                                    lod1.name = `${mesh.name}_lpoly_angle20`;
+                                    lod1.isVisible = false;
+                                    lod1.setEnabled(false);
+                                    allLoadedMeshes.push(lod1);
+                                }
+
+                                if (lod2) {
+                                    lod2.name = `${mesh.name}_mpoly_angle10`;
+                                    lod2.isVisible = false;
+                                    lod2.setEnabled(false);
+                                    allLoadedMeshes.push(lod2);
+                                }
+
+                                if (lod3) {
+                                    lod3.name = `${mesh.name}_hpoly_angle5`;
+                                    lod3.isVisible = false;
+                                    lod3.setEnabled(false);
+                                    allLoadedMeshes.push(lod3);
+                                }
+
+                                // // Add original mesh to allLoadedMeshes as well
+                                // allLoadedMeshes.push(mesh);
+
+                            } catch (error) {
+                                console.error(`Error simplifying mesh ${mesh.name}:`, error);
+                            }
+                        }
+                        console.log(`all meshes to load : ${allLoadedMeshes}`);
+
                     }
 
                     // Create octree structure
@@ -1985,14 +2024,14 @@ function Fbxload() {
                             convertedBoundingBox.max
                         );
 
-                        // Process LOD merging
-                        await processLODMerging();
-                        await mergeMeshesByAngle();
-                        // Update UI and visualizations
-                        updateLODVisibility();
-                        const mergemeshdata = collectMergedMeshInfo()
-                        console.log(mergemeshdata);
-                        setmergemeshdatas(mergemeshdata.meshes)
+                        //         // Process LOD merging
+                        //         await processLODMerging();
+                        // await mergeMeshesByAngle();
+                        // // Update UI and visualizations
+                        // updateLODVisibility();
+                        //         const mergemeshdata = collectMergedMeshInfo()
+                        //         console.log(mergemeshdata);
+                        //         setmergemeshdatas(mergemeshdata.meshes)
                         const orimeshdata = collectOriginalMeshInfo()
                         console.log(orimeshdata);
                         setorimeshdatas(orimeshdata.meshes)
@@ -2021,7 +2060,10 @@ function Fbxload() {
             >
                 Select FBX File
             </button>
-            <canvas ref={canvasRef} style={{ width: '100%', height: '100%' }} />
+
+            <Loadindexdb />
+
+            {/* <canvas ref={canvasRef} style={{ width: '100%', height: '100%' }} /> */}
             {/* <CameraControls
                 scene={scene}
                 canvas={canvasRef.current}
@@ -2039,17 +2081,11 @@ function Fbxload() {
                         ...orimeshdatas.map(data => ({
                             fileName: data.name,
                             data: data
-                        })),
-                        ...mergemeshdatas.map(data => ({
-                            fileName: data.name,
-                            data: data
                         }))
                     ]}
                     octree={octreedatas}
                 />
             )}
-
-
 
         </div>
     );
