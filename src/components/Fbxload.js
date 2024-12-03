@@ -3896,19 +3896,19 @@ function Fbxload() {
                 scene={currentScene}
                 canvasRef={canvasRef}
             /> */}
-            <Loadindexdb></Loadindexdb>
-            {/* <canvas ref={canvasRef} style={{ width: '100%', height: '100%' }} /> */}
+            {/* <Loadindexdb></Loadindexdb> */}
+            <canvas ref={canvasRef} style={{ width: '100%', height: '100%' }} />
             {/* <CameraControls
                 scene={scene}
                 canvas={canvasRef.current}
                 updateLODVisibility={updateLODVisibility}
                 maxDistance={maxDistance}
             /> */}
-            <div id='rightopt' style={{ right: '0px' }} >
+            {/* <div id='rightopt' style={{ right: '0px' }} >
                 <i class="fa-solid fa-circle-info  button " title='Tag Info'  ></i>
                 <i class="fa fa-search-plus button" title='Zoomin' ></i>
                 <i class="fa fa-search-plus button" title='Download' onClick={downloadmesh}></i>
-            </div>
+            </div> */}
             {octreedatas && orimeshdatas.length > 0 && (
                 <Octreestorage
                     convertedModels={[

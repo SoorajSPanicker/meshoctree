@@ -335,6 +335,7 @@ const Loadindexdb = () => {
     let scene;
     let engine;
     let camera;
+    const [isWireframe, setIsWireframe] = useState(false);
 
     const deserializeOctree = (serializedOctree) => {
         return {
@@ -357,103 +358,7 @@ const Loadindexdb = () => {
         };
     };
 
-    // const createMeshFromData = (meshData, scene) => {
-    //     try {
-    //         const mesh = new BABYLON.Mesh(meshData.data.name, scene);
 
-    //         // Create vertex data
-    //         const vertexData = new BABYLON.VertexData();
-    //         vertexData.positions = new Float32Array(meshData.data.vertexData.positions);
-    //         vertexData.indices = new Uint32Array(meshData.data.vertexData.indices);
-
-    //         if (meshData.data.vertexData.normals && meshData.data.vertexData.normals.length > 0) {
-    //             vertexData.normals = new Float32Array(meshData.data.vertexData.normals);
-    //         }
-
-    //         if (meshData.data.vertexData.uvs && meshData.data.vertexData.uvs.length > 0) {
-    //             vertexData.uvs = new Float32Array(meshData.data.vertexData.uvs);
-    //         }
-
-    //         // Apply vertex data to mesh
-    //         vertexData.applyToMesh(mesh);
-
-    //         // Set transforms
-    //         mesh.position = new BABYLON.Vector3(
-    //             meshData.data.transforms.position.x,
-    //             meshData.data.transforms.position.y,
-    //             meshData.data.transforms.position.z
-    //         );
-
-    //         mesh.rotation = new BABYLON.Vector3(
-    //             meshData.data.transforms.rotation.x,
-    //             meshData.data.transforms.rotation.y,
-    //             meshData.data.transforms.rotation.z
-    //         );
-
-    //         mesh.scaling = new BABYLON.Vector3(
-    //             meshData.data.transforms.scaling.x,
-    //             meshData.data.transforms.scaling.y,
-    //             meshData.data.transforms.scaling.z
-    //         );
-
-    //         // Create and apply material
-    //         const material = new BABYLON.StandardMaterial(`material_${mesh.name}`, scene);
-    //         material.diffuseColor = new BABYLON.Color3(0.7, 0.7, 0.7);
-    //         material.backFaceCulling = false;
-    //         mesh.material = material;
-
-    //         // Set metadata
-    //         mesh.nodeNumber = meshData.data.nodeNumber;
-    //         mesh.depth = meshData.data.depth;
-    //         mesh.parentNode = meshData.data.parentNode;
-
-    //         return mesh;
-    //     } catch (error) {
-    //         console.error('Error creating mesh:', error);
-    //         return null;
-    //     }
-    // };
-
-    // const visualizeOctree = (scene, octreeData) => {
-    //     // Create wireframe material
-    //     const wireframeMaterial = new BABYLON.StandardMaterial("wireframeMat", scene);
-    //     wireframeMaterial.wireframe = true;
-    //     wireframeMaterial.alpha = 0.3;
-
-    //     // Create materials for different depths
-    //     const depthMaterials = {};
-    //     for (let i = 0; i <= 4; i++) {
-    //         const material = wireframeMaterial.clone(`wireframe_${i}`);
-    //         material.emissiveColor = new BABYLON.Color3(
-    //             i === 0 ? 1 : 0,  // Red for depth 0
-    //             i === 1 ? 1 : 0,  // Green for depth 1
-    //             i === 2 ? 1 : (i === 3 ? 0.5 : 0)  // Blue/mixed for others
-    //         );
-    //         depthMaterials[i] = material;
-    //     }
-
-    //     // Visualize each node
-    //     octreeData.structure.forEach(node => {
-    //         if (node.bounds) {
-    //             const min = node.bounds.minimum;
-    //             const max = node.bounds.maximum;
-    //             const size = max.subtract(min);
-    //             const center = BABYLON.Vector3.Center(min, max);
-
-    //             // Create box for node visualization
-    //             const box = BABYLON.MeshBuilder.CreateBox(
-    //                 `octreeNode_${node.nodeNumber}`,
-    //                 { width: size.x, height: size.y, depth: size.z },
-    //                 scene
-    //             );
-
-    //             box.position = center;
-    //             box.material = depthMaterials[node.depth] || depthMaterials[0];
-    //             box.isPickable = false;
-    //             box.visibility = 0.3;  // Make wireframe semi-transparent
-    //         }
-    //     });
-    // };
 
     const createMeshFromData = (meshData, scene) => {
         try {
@@ -516,43 +421,6 @@ const Loadindexdb = () => {
         }
     };
 
-
-
-    // const visualizeOctree = (scene, octreeData) => {
-    //     // Clear any existing octree visualization
-    //     scene.meshes
-    //         .filter(mesh => mesh.name.startsWith('octreeNode_'))
-    //         .forEach(mesh => mesh.dispose());
-
-    //     // Create wireframe material for root octree
-    //     const wireframeMaterial = new BABYLON.StandardMaterial("wireframeMat", scene);
-    //     wireframeMaterial.wireframe = true;
-    //     wireframeMaterial.emissiveColor = new BABYLON.Color3(1, 0, 0); // Red color
-    //     wireframeMaterial.alpha = 0.3;
-
-    //     // Only visualize the root node (the encompassing octree)
-    //     const rootNode = octreeData.structure.find(node => node.depth === 0);
-
-    //     if (rootNode && rootNode.bounds) {
-    //         const min = rootNode.bounds.minimum;
-    //         const max = rootNode.bounds.maximum;
-    //         const size = max.subtract(min);
-    //         const center = BABYLON.Vector3.Center(min, max);
-
-    //         // Create box for root node visualization
-    //         const box = BABYLON.MeshBuilder.CreateBox(
-    //             'octreeNode_root',
-    //             { width: size.x, height: size.y, depth: size.z },
-    //             scene
-    //         );
-
-    //         box.position = center;
-    //         box.material = wireframeMaterial;
-    //         box.isPickable = false;
-    //         box.visibility = 0.3;  // Make wireframe semi-transparent
-    //     }
-    // };
-
     const createWireframeBox = (scene, minimum, maximum, depth = 0) => {
         if (!scene) {
             console.error('No scene provided to createWireframeBox');
@@ -595,39 +463,7 @@ const Loadindexdb = () => {
         }
     };
 
-    // const visualizeOctree = async (scene,octree) => {
-    //     if (!scene || !octree) {
-    //         console.error('Missing scene or octree for visualization');
-    //         return;
-    //     }
 
-    //     console.log('Starting octree visualization');
-
-    //     // Create root bounding box
-    //     const boundingBox = octree.metadata.boundingBox;
-    //     if (boundingBox) {
-    //         console.log('Creating root bounding box');
-    //         const rootBox = createWireframeBox(scene, boundingBox.min, boundingBox.max, 0);
-    //         if (rootBox) {
-    //             console.log('Root box created');
-    //         }
-    //     }
-
-    //     // Visualize each node
-    //     let nodeCount = 0;
-    //     for (const node of octree.structure) {
-    //         if (node.bounds) {
-    //             const box = createWireframeBox(
-    //                 scene,
-    //                 node.bounds.minimum,
-    //                 node.bounds.maximum,
-    //                 node.depth
-    //             );
-    //             if (box) nodeCount++;
-    //         }
-    //     }
-    //     console.log(`Created ${nodeCount} node boxes`);
-    // };
 
     const visualizeOctree = async (scene, octree) => {
         if (!scene || !octree) {
@@ -733,6 +569,170 @@ const Loadindexdb = () => {
         return scene;
     };
 
+    const filterMeshVisibility = (scene) => {
+        if (!scene) return;
+
+        // Hide all meshes first
+        scene.meshes.forEach(mesh => {
+            // Skip octree wireframe boxes
+            if (mesh.name.startsWith('octreeVisBox_')) {
+                return;
+            }
+
+            // Check if mesh name ends with '_angle20'
+            if (mesh.name.endsWith('_angle20')) {
+                mesh.isVisible = true;
+                mesh.setEnabled(true);
+            } else {
+                mesh.isVisible = false;
+                mesh.setEnabled(false);
+            }
+        });
+    };
+    // const showwireframe = () => {
+    //     setIsWireframe(prev => !prev);
+    //     console.log("Entered wireframe");
+
+    //     if (scene) {
+    //         const visibleMeshes = scene.meshes.filter(mesh =>
+    //             mesh.isVisible &&
+    //             !mesh.name.startsWith("octreeVisBox_") &&
+    //             mesh.material
+    //         );
+
+    //         visibleMeshes.forEach(mesh => {
+    //             if (isWireframe) {
+    //                 // Restore original material settings if they exist
+    //                 if (mesh._originalMaterialSettings) {
+    //                     mesh.material.wireframe = mesh._originalMaterialSettings.wireframe;
+    //                     mesh.material.backFaceCulling = mesh._originalMaterialSettings.backFaceCulling;
+    //                     if (mesh._originalMaterialSettings.emissiveColor) {
+    //                         mesh.material.emissiveColor = mesh._originalMaterialSettings.emissiveColor;
+    //                     }
+    //                     if (mesh._originalMaterialSettings.diffuseColor) {
+    //                         mesh.material.diffuseColor = mesh._originalMaterialSettings.diffuseColor;
+    //                     }
+    //                 }
+    //             } else {
+    //                 // Store original material settings
+    //                 if (!mesh._originalMaterialSettings) {
+    //                     mesh._originalMaterialSettings = {
+    //                         wireframe: mesh.material.wireframe,
+    //                         backFaceCulling: mesh.material.backFaceCulling,
+    //                         emissiveColor: mesh.material.emissiveColor ? mesh.material.emissiveColor.clone() : null,
+    //                         diffuseColor: mesh.material.diffuseColor ? mesh.material.diffuseColor.clone() : null,
+    //                     };
+    //                 }
+
+    //                 // Apply wireframe settings
+    //                 mesh.material.wireframe = true;
+    //                 mesh.material.backFaceCulling = false;
+    //                 mesh.material.emissiveColor = new BABYLON.Color3(1, 1, 1);
+    //                 mesh.material.diffuseColor = new BABYLON.Color3(1, 1, 1);
+    //             }
+    //         });
+    //     }
+    // };
+
+    // const showwireframe = () => {
+    //     setIsWireframe(prev => !prev);
+    //     console.log("Toggling wireframe mode");
+
+    //     if (scene) {
+    //         // Get only visible meshes that aren't octree boxes
+    //         const visibleMeshes = scene.meshes.filter(mesh =>
+    //             mesh.isVisible &&
+    //             !mesh.name.startsWith("octreeVisBox_") &&
+    //             mesh.name.endsWith("_angle20") &&
+    //             mesh.material
+    //         );
+
+    //         visibleMeshes.forEach(mesh => {
+    //             if (mesh.material) {
+    //                 if (!isWireframe) {
+    //                     // Store original material settings before switching to wireframe
+    //                     if (!mesh._originalMaterialSettings) {
+    //                         mesh._originalMaterialSettings = {
+    //                             wireframe: mesh.material.wireframe,
+    //                             backFaceCulling: mesh.material.backFaceCulling,
+    //                             diffuseColor: mesh.material.diffuseColor.clone(),
+    //                             emissiveColor: mesh.material.emissiveColor ?
+    //                                 mesh.material.emissiveColor.clone() : null
+    //                         };
+    //                     }
+
+    //                     // Apply wireframe settings
+    //                     mesh.material.wireframe = true;
+    //                     mesh.material.backFaceCulling = false;
+    //                     mesh.material.emissiveColor = new BABYLON.Color3(0.7, 0.7, 0.7);
+    //                 } else {
+    //                     // Restore original material settings
+    //                     if (mesh._originalMaterialSettings) {
+    //                         mesh.material.wireframe = mesh._originalMaterialSettings.wireframe;
+    //                         mesh.material.backFaceCulling = mesh._originalMaterialSettings.backFaceCulling;
+    //                         mesh.material.diffuseColor = mesh._originalMaterialSettings.diffuseColor;
+    //                         if (mesh._originalMaterialSettings.emissiveColor) {
+    //                             mesh.material.emissiveColor = mesh._originalMaterialSettings.emissiveColor;
+    //                         }
+    //                     }
+    //                 }
+    //             }
+    //         });
+    //     }
+    // };
+
+    const showwireframe = () => {
+        // Toggle wireframe state and use the new value immediately
+        setIsWireframe(prevState => {
+            const newWireframeState = !prevState;
+            console.log("Toggling wireframe mode:", newWireframeState);
+
+            if (scene) {
+                // Get only visible meshes that aren't octree boxes
+                const visibleMeshes = scene.meshes.filter(mesh =>
+                    mesh.isVisible &&
+                    !mesh.name.startsWith("octreeVisBox_") &&
+                    mesh.name.endsWith("_angle20") &&
+                    mesh.material
+                );
+
+                visibleMeshes.forEach(mesh => {
+                    if (mesh.material) {
+                        if (newWireframeState) { // Using new state value instead of !isWireframe
+                            // Store original material settings before switching to wireframe
+                            if (!mesh._originalMaterialSettings) {
+                                mesh._originalMaterialSettings = {
+                                    wireframe: mesh.material.wireframe,
+                                    backFaceCulling: mesh.material.backFaceCulling,
+                                    diffuseColor: mesh.material.diffuseColor.clone(),
+                                    emissiveColor: mesh.material.emissiveColor ?
+                                        mesh.material.emissiveColor.clone() : null
+                                };
+                            }
+
+                            // Apply wireframe settings
+                            mesh.material.wireframe = true;
+                            mesh.material.backFaceCulling = false;
+                            mesh.material.emissiveColor = new BABYLON.Color3(0.7, 0.7, 0.7);
+                        } else {
+                            // Restore original material settings
+                            if (mesh._originalMaterialSettings) {
+                                mesh.material.wireframe = mesh._originalMaterialSettings.wireframe;
+                                mesh.material.backFaceCulling = mesh._originalMaterialSettings.backFaceCulling;
+                                mesh.material.diffuseColor = mesh._originalMaterialSettings.diffuseColor;
+                                if (mesh._originalMaterialSettings.emissiveColor) {
+                                    mesh.material.emissiveColor = mesh._originalMaterialSettings.emissiveColor;
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            return newWireframeState;
+        });
+    };
+
     const loadFromIndexedDB = async () => {
         try {
             setStatus('Opening database...');
@@ -769,6 +769,10 @@ const Loadindexdb = () => {
             setStatus('Visualizing octree...');
             const octree = deserializeOctree(octreeData.data);
             visualizeOctree(scene, octree);
+
+            // Filter mesh visibility
+            setStatus('Filtering meshes...');
+            filterMeshVisibility(scene);
 
             // Position camera to view all content
             setStatus('Positioning camera...');
@@ -825,6 +829,20 @@ const Loadindexdb = () => {
                 <p>{status}</p>
             </div>
             <canvas ref={canvasRef} style={{ width: '100%', height: '70vh' }} />
+            <div id='rightopt' style={{ right: '0px' }} >
+                <i class="fa-solid fa-circle-info  button " title='Tag Info'  ></i>
+                <i class="fa fa-search-plus button" title='Zoomin' ></i>
+                <i class="fa fa-search-plus button" title='Download' ></i>
+                <i
+                    className="fa-solid fa-circle-info button"
+                    title={`Wireframe ${isWireframe ? 'Off' : 'On'}`}
+                    onClick={showwireframe}
+                    style={{
+                        cursor: 'pointer',
+                        color: isWireframe ? '#4CAF50' : '#000000'
+                    }}
+                ></i>
+            </div>
         </div>
     );
 };
