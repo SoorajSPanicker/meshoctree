@@ -1,177 +1,141 @@
-// import React, { useState, useEffect } from 'react';
-// import * as BABYLON from "@babylonjs/core";
-// import { openDB } from 'idb';
-
-// function OctreeStorage({ convertedModels, octree }) {
-//     const [storageStatus, setStorageStatus] = useState('');
-
-//     useEffect(() => {
-//         if (convertedModels.length > 0 && octree) {
-//             storeData();
-//         }
-//     }, [convertedModels, octree]);
-
-//     const storeData = async () => {
-//         try {
-//             setStorageStatus('Storing data...');
-
-//             // Open IndexedDB
-//             const db = await openDB('ModelStorage', 1, {
-//                 upgrade(db) {
-//                     db.createObjectStore('models');
-//                     db.createObjectStore('octrees');
-//                 },
-//             });
-
-//             // Store GLB files
-//             for (const model of convertedModels) {
-//                 await db.put('models', model.data, model.fileName);
-//             }
-
-//             // Log octree structure for debugging
-//             console.log('Original Octree:', octree);
-
-//             // Serialize octree
-//             const serializedOctree = serializeOctree(octree);
-//             console.log('Serialized Octree:', serializedOctree);
-
-//             // Store serialized octree
-//             await db.put('octrees', serializedOctree, 'serializedOctree');
-
-//             setStorageStatus('Data stored successfully');
-//         } catch (error) {
-//             console.error('Error storing data:', error);
-//             setStorageStatus('Error storing data');
-//         }
-//     };
-
-//     const serializeOctree = (octree) => {
-//         if (!octree) {
-//             console.warn('Octree is undefined');
-//             return null;
-//         }
-
-//         const serialized = {
-//             maxDepth: octree.maxDepth,
-//             blocks: [],
-//             entries: []
-//         };
-
-//         const serializeBlock = (block) => {
-//             if (!block) return null;
-
-//             return {
-//                 minPoint: block.minPoint ? { x: block.minPoint.x, y: block.minPoint.y, z: block.minPoint.z } : null,
-//                 maxPoint: block.maxPoint ? { x: block.maxPoint.x, y: block.maxPoint.y, z: block.maxPoint.z } : null,
-//                 capacity: block.capacity,
-//                 blocks: block.blocks ? block.blocks.map(serializeBlock).filter(Boolean) : [],
-//                 entries: block.entries ? block.entries.map(entry => entry.id).filter(Boolean) : []
-//             };
-//         };
-
-//         if (octree.blocks && octree.blocks.length > 0) {
-//             serialized.blocks = octree.blocks.map(serializeBlock).filter(Boolean);
-//         }
-
-//         if (octree.entries && octree.entries.length > 0) {
-//             serialized.entries = octree.entries.map(entry => entry.id).filter(Boolean);
-//         }
-
-//         return serialized;
-//     };
-
-//     return (
-//         <div>
-//             <h2>Octree and Model Storage</h2>
-//             <p>Status: {storageStatus}</p>
-//         </div>
-//     );
-// }
-
-// export default OctreeStorage;
-
-
-
 // import React, { useEffect, useState } from 'react';
 // import { openDB } from 'idb';
 
 // const Octreestorage = ({ convertedModels, octree }) => {
 //     const [storageStatus, setStorageStatus] = useState('');
+//     const DB_NAME = 'ModelStorage';
+//     const DB_VERSION = 1;
 
-//     const serializeOctree = (octree) => {
-//         const serializedOctree = {
-//             structure: octree.structure.map(node => ({
-//                 ...node,
-//                 bounds: node.bounds ? { ...node.bounds } : null,
-//                 meshTypes: { ...node.meshTypes },
-//                 childNodes: [...node.childNodes]
-//             })),
-//             metadata: {
-//                 ...octree.metadata,
-//                 nodesByDepth: { ...octree.metadata.nodesByDepth }
-//             }
-//         };
-//         return serializedOctree;
-//     };
-
-//     const saveToIndexedDB = async () => {
+//     // Initialize database
+//     const initDB = async () => {
 //         try {
-//             setStorageStatus('Initializing storage...');
-
-//             const db = await openDB('ModelStorage', 1, {
+//             const db = await openDB(DB_NAME, DB_VERSION, {
 //                 upgrade(db) {
+//                     // Create object stores if they don't exist
 //                     if (!db.objectStoreNames.contains('models')) {
-//                         db.createObjectStore('models');
+//                         db.createObjectStore('models', { keyPath: 'fileName' });
 //                     }
 //                     if (!db.objectStoreNames.contains('octrees')) {
-//                         db.createObjectStore('octrees');
+//                         db.createObjectStore('octrees', { keyPath: 'name' });
 //                     }
 //                 },
 //             });
+//             return db;
+//         } catch (error) {
+//             console.error('Error initializing database:', error);
+//             setStorageStatus('Error initializing database');
+//             throw error;
+//         }
+//     };
 
-//             setStorageStatus('Storing model data...');
+//     // Serialize octree data
+//     const serializeOctree = (octreeData) => {
+//         // Create a deep copy of the octree and transform any non-serializable data
+//         const serializableOctree = {
+//             ...octreeData,
+//             metadata: {
+//                 ...octreeData.metadata,
+//                 boundingBox: {
+//                     min: {
+//                         x: octreeData.metadata.boundingBox.min.x,
+//                         y: octreeData.metadata.boundingBox.min.y,
+//                         z: octreeData.metadata.boundingBox.min.z
+//                     },
+//                     max: {
+//                         x: octreeData.metadata.boundingBox.max.x,
+//                         y: octreeData.metadata.boundingBox.max.y,
+//                         z: octreeData.metadata.boundingBox.max.z
+//                     }
+//                 }
+//             },
+//             structure: octreeData.structure.map(node => ({
+//                 ...node,
+//                 bounds: node.bounds ? {
+//                     minimum: {
+//                         x: node.bounds.minimum.x,
+//                         y: node.bounds.minimum.y,
+//                         z: node.bounds.minimum.z
+//                     },
+//                     maximum: {
+//                         x: node.bounds.maximum.x,
+//                         y: node.bounds.maximum.y,
+//                         z: node.bounds.maximum.z
+//                     }
+//                 } : null,
+//                 meshCounts: {
+//                     ...node.meshCounts
+//                 },
+//                 childNodes: [...node.childNodes]
+//             }))
+//         };
+
+//         return serializableOctree;
+//     };
+
+//     // Save data to IndexedDB
+//     const saveToIndexedDB = async () => {
+//         try {
+//             setStorageStatus('Initializing storage...');
+//             const db = await initDB();
+
+//             // Store model data
 //             const modelTx = db.transaction('models', 'readwrite');
 //             const modelStore = modelTx.objectStore('models');
 
+//             // Store each model
 //             for (const model of convertedModels) {
-//                 await modelStore.put(model.data, model.fileName);
+//                 setStorageStatus(`Storing model: ${model.fileName}`);
+//                 await modelStore.put(model);
 //             }
 
-//             setStorageStatus('Serializing octree...');
+//             // Serialize and store octree
 //             const serializedOctree = serializeOctree(octree);
-
 //             console.log('Original Octree:', octree);
 //             console.log('Serialized Octree:', serializedOctree);
 
 //             const octreeTx = db.transaction('octrees', 'readwrite');
 //             const octreeStore = octreeTx.objectStore('octrees');
-//             await octreeStore.put(serializedOctree, 'octree');
+//             await octreeStore.put({
+//                 name: 'mainOctree',
+//                 data: serializedOctree,
+//                 timestamp: new Date().toISOString()
+//             });
 
-//             await modelTx.complete;
-//             await octreeTx.complete;
+//             setStorageStatus('Storage complete');
 
+//             // Verify storage
 //             const verifyTx = db.transaction(['models', 'octrees'], 'readonly');
 //             const modelCount = await verifyTx.objectStore('models').count();
-//             const octreeExists = await verifyTx.objectStore('octrees').get('octree');
-
-//             setStorageStatus(`Storage complete: ${modelCount} models saved`);
+//             const octreeCount = await verifyTx.objectStore('octrees').count();
+//             console.log(`Stored ${modelCount} models and ${octreeCount} octrees`);
 
 //         } catch (error) {
-//             console.error('Storage error:', error);
-//             setStorageStatus(`Error storing data: ${error.message}`);
+//             console.error('Error saving to IndexedDB:', error);
+//             setStorageStatus(`Error: ${error.message}`);
 //         }
 //     };
 
+//     // Effect to trigger storage when component receives data
 //     useEffect(() => {
-//         if (convertedModels && convertedModels.length > 0 && octree) {
+//         if (convertedModels?.length > 0 && octree) {
 //             saveToIndexedDB();
 //         }
 //     }, [convertedModels, octree]);
 
 //     return (
-//         <div className="p-4 bg-gray-100 rounded">
-//             <h2 className="text-lg font-bold mb-2">Storage Status</h2>
-//             <p className="text-gray-700">{storageStatus}</p>
+//         <div className="p-4 bg-gray-100 rounded-lg">
+//             <h2 className="text-xl font-bold mb-4">Storage Status</h2>
+//             <p className={`mb-2 ${storageStatus.includes('Error') ? 'text-red-500' : 'text-green-500'}`}>
+//                 {storageStatus}
+//             </p>
+//             <div className="mt-4">
+//                 <p className="text-sm text-gray-600">
+//                     Models to store: {convertedModels?.length || 0}
+//                 </p>
+//                 <p className="text-sm text-gray-600">
+//                     Octree nodes: {octree?.structure?.length || 0}
+//                 </p>
+//             </div>
 //         </div>
 //     );
 // };
@@ -184,145 +148,145 @@ import { openDB } from 'idb';
 
 const Octreestorage = ({ convertedModels, octree }) => {
     const [storageStatus, setStorageStatus] = useState('');
+    const DB_NAME = 'ModelStorage';
+    const DB_VERSION = 1;
 
-    const cleanMeshData = (meshData) => {
-        return {
-            name: meshData.name,
-            nodeNumber: meshData.nodeNumber,
-            depth: meshData.depth,
-            parentNode: meshData.parentNode,
-            vertexData: {
-                positions: Array.from(meshData.vertexData.positions),
-                normals: Array.from(meshData.vertexData.normals),
-                indices: Array.from(meshData.vertexData.indices),
-                uvs: Array.from(meshData.vertexData.uvs)
-            },
-            transforms: {
-                position: { ...meshData.transforms.position },
-                rotation: { ...meshData.transforms.rotation },
-                scaling: { ...meshData.transforms.scaling },
-                worldMatrix: Array.from(meshData.transforms.worldMatrix)
-            },
-            boundingInfo: {
-                minimum: { ...meshData.boundingInfo.minimum },
-                maximum: { ...meshData.boundingInfo.maximum },
-                boundingSphere: {
-                    center: { ...meshData.boundingInfo.boundingSphere.center },
-                    radius: meshData.boundingInfo.boundingSphere.radius
-                }
-            },
-            metadata: {
-                id: meshData.metadata.id,
-                isVisible: meshData.metadata.isVisible ? true : false,
-                isEnabled: meshData.metadata.isEnabled ? true : false,
-                renderingGroupId: meshData.metadata.renderingGroupId,
-                material: meshData.metadata.material ? {
-                    name: meshData.metadata.material.name,
-                    id: meshData.metadata.material.id,
-                    diffuseColor: meshData.metadata.material.diffuseColor ? {
-                        r: meshData.metadata.material.diffuseColor.r,
-                        g: meshData.metadata.material.diffuseColor.g,
-                        b: meshData.metadata.material.diffuseColor.b
-                    } : null
-                } : null,
-                geometryInfo: {
-                    totalVertices: meshData.metadata.geometryInfo.totalVertices,
-                    totalIndices: meshData.metadata.geometryInfo.totalIndices,
-                    faceCount: meshData.metadata.geometryInfo.faceCount
-                }
-            }
-        };
-    };
-
-    // const serializeOctree = (octree) => {
-    //     return {
-    //         structure: octree.structure.map(node => ({
-    //             nodeNumber: node.nodeNumber,
-    //             depth: node.depth,
-    //             parentNode: node.parentNode,
-    //             bounds: node.bounds ? {
-    //                 minimum: { ...node.bounds.minimum },
-    //                 maximum: { ...node.bounds.maximum }
-    //             } : null,
-    //             meshCount: node.meshCount,
-    //             meshTypes: {
-    //                 original: node.meshTypes.original,
-    //                 merged: node.meshTypes.merged
-    //             },
-    //             childNodes: [...node.childNodes]
-    //         })),
-    //         metadata: {
-    //             maxDepth: octree.metadata.maxDepth,
-    //             minSize: octree.metadata.minSize,
-    //             totalNodes: octree.metadata.totalNodes,
-    //             nodesByDepth: { ...octree.metadata.nodesByDepth },
-    //             averageMeshesPerNode: octree.metadata.averageMeshesPerNode
-    //         }
-    //     };
-    // };
-
-    const serializeOctree = (octree) => {
-        return {
-            structure: octree.structure.map(node => ({
-                nodeNumber: node.nodeNumber,
-                depth: node.depth,
-                parentNode: node.parentNode,
-                // The bounds should be for the entire node, not per mesh
-                bounds: node.bounds ? {
-                    minimum: { ...node.bounds.minimum },
-                    maximum: { ...node.bounds.maximum }
-                } : null,
-                meshCount: node.meshCount,
-                meshTypes: {
-                    original: node.meshTypes.original,
-                    merged: node.meshTypes.merged
-                },
-                childNodes: [...node.childNodes]
-            })),
-            metadata: {
-                maxDepth: octree.metadata.maxDepth,
-                // ... other metadata
-            }
-        };
-    };
-    const saveToIndexedDB = async () => {
+    // Initialize database
+    const initDB = async () => {
         try {
-            setStorageStatus('Initializing storage...');
-            const db = await openDB('ModelStorage', 1, {
+            const db = await openDB(DB_NAME, DB_VERSION, {
                 upgrade(db) {
                     if (!db.objectStoreNames.contains('models')) {
-                        db.createObjectStore('models');
+                        db.createObjectStore('models', { keyPath: 'fileName' });
                     }
                     if (!db.objectStoreNames.contains('octrees')) {
-                        db.createObjectStore('octrees');
+                        db.createObjectStore('octrees', { keyPath: 'name' });
                     }
                 },
             });
+            return db;
+        } catch (error) {
+            console.error('Error initializing database:', error);
+            setStorageStatus('Error initializing database');
+            throw error;
+        }
+    };
 
-            setStorageStatus('Cleaning and storing model data...');
+    // Serialize mesh data
+    const serializeMeshData = (meshData) => {
+        return {
+            fileName: meshData.fileName,
+            data: {
+                name: meshData.data.name,
+                nodeNumber: meshData.data.nodeNumber,
+                depth: meshData.data.depth,
+                parentNode: meshData.data.parentNode,
+                vertexData: meshData.data.vertexData,
+                transforms: {
+                    position: meshData.data.transforms.position,
+                    rotation: meshData.data.transforms.rotation,
+                    scaling: meshData.data.transforms.scaling,
+                    worldMatrix: Array.from(meshData.data.transforms.worldMatrix)
+                },
+                boundingInfo: meshData.data.boundingInfo,
+                metadata: {
+                    id: meshData.data.metadata.id,
+                    geometryInfo: meshData.data.metadata.geometryInfo,
+                    material: meshData.data.metadata.material ? {
+                        name: meshData.data.metadata.material.name,
+                        id: meshData.data.metadata.material.id,
+                        diffuseColor: meshData.data.metadata.material.diffuseColor
+                    } : null
+                }
+            }
+        };
+    };
+
+    // Serialize octree data
+    const serializeOctree = (octreeData) => {
+        if (!octreeData || !octreeData.metadata?.boundingBox) {
+            console.error('Invalid octree data:', octreeData);
+            return null;
+        }
+
+        try {
+            const serializableOctree = {
+                metadata: {
+                    maxDepth: octreeData.metadata.maxDepth,
+                    minSize: octreeData.metadata.minSize,
+                    totalNodes: octreeData.metadata.totalNodes,
+                    nodesByDepth: { ...octreeData.metadata.nodesByDepth },
+                    boundingBox: octreeData.metadata.boundingBox ? {
+                        min: {
+                            x: octreeData.metadata.boundingBox.min.x,
+                            y: octreeData.metadata.boundingBox.min.y,
+                            z: octreeData.metadata.boundingBox.min.z
+                        },
+                        max: {
+                            x: octreeData.metadata.boundingBox.max.x,
+                            y: octreeData.metadata.boundingBox.max.y,
+                            z: octreeData.metadata.boundingBox.max.z
+                        }
+                    } : null,
+                    meshDistribution: octreeData.metadata.meshDistribution
+                },
+                structure: octreeData.structure.map(node => ({
+                    nodeNumber: node.nodeNumber,
+                    depth: node.depth,
+                    parentNode: node.parentNode,
+                    bounds: node.bounds,
+                    meshCounts: node.meshCounts,
+                    childNodes: node.childNodes
+                }))
+            };
+
+            return serializableOctree;
+        } catch (error) {
+            console.error('Error serializing octree:', error);
+            return null;
+        }
+    };
+
+    // Save data to IndexedDB
+    const saveToIndexedDB = async () => {
+        try {
+            setStorageStatus('Initializing storage...');
+            const db = await initDB();
+
+            // Store model data
             const modelTx = db.transaction('models', 'readwrite');
             const modelStore = modelTx.objectStore('models');
 
+            // Store each model
             for (const model of convertedModels) {
-                const cleanedData = cleanMeshData(model.data);
-                await modelStore.put(cleanedData, model.fileName);
+                setStorageStatus(`Storing model: ${model.fileName}`);
+                const serializedModel = serializeMeshData(model);
+                await modelStore.put(serializedModel);
             }
 
-            setStorageStatus('Serializing octree data...');
+            // Serialize and store octree
             const serializedOctree = serializeOctree(octree);
-
-            const octreeTx = db.transaction('octrees', 'readwrite');
-            const octreeStore = octreeTx.objectStore('octrees');
-            await octreeStore.put(serializedOctree, 'mainOctree');
-
-            await modelTx.complete;
-            await octreeTx.complete;
+            if (serializedOctree) {
+                const octreeTx = db.transaction('octrees', 'readwrite');
+                const octreeStore = octreeTx.objectStore('octrees');
+                await octreeStore.put({
+                    name: 'mainOctree',
+                    data: serializedOctree,
+                    timestamp: new Date().toISOString()
+                });
+            }
 
             setStorageStatus('Storage complete');
 
+            // Verify storage
+            const verifyTx = db.transaction(['models', 'octrees'], 'readonly');
+            const modelCount = await verifyTx.objectStore('models').count();
+            const octreeCount = await verifyTx.objectStore('octrees').count();
+            console.log(`Stored ${modelCount} models and ${octreeCount} octrees`);
+
         } catch (error) {
-            console.error('Storage error:', error);
-            setStorageStatus(`Error storing data: ${error.message}`);
+            console.error('Error saving to IndexedDB:', error);
+            setStorageStatus(`Error: ${error.message}`);
         }
     };
 
@@ -333,9 +297,19 @@ const Octreestorage = ({ convertedModels, octree }) => {
     }, [convertedModels, octree]);
 
     return (
-        <div className="p-4 bg-gray-100 rounded-lg shadow">
-            <h2 className="text-lg font-semibold mb-2">Storage Status</h2>
-            <p className="text-gray-700">{storageStatus}</p>
+        <div className="p-4 bg-gray-100 rounded-lg">
+            <h2 className="text-xl font-bold mb-4">Storage Status</h2>
+            <p className={`mb-2 ${storageStatus.includes('Error') ? 'text-red-500' : 'text-green-500'}`}>
+                {storageStatus}
+            </p>
+            <div className="mt-4">
+                <p className="text-sm text-gray-600">
+                    Models to store: {convertedModels?.length || 0}
+                </p>
+                <p className="text-sm text-gray-600">
+                    Octree nodes: {octree?.structure?.length || 0}
+                </p>
+            </div>
         </div>
     );
 };

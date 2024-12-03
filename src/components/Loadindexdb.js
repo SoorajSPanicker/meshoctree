@@ -1,15 +1,37 @@
-
-
-// import React, { useState } from 'react';
+// import React from 'react';
 // import { openDB } from 'idb';
 // import * as BABYLON from '@babylonjs/core';
 
-// const Loadindexdb = ({ scene, camera }) => {
-//     const [status, setStatus] = useState('');
+// const Loadindexdb = ({ scene, canvasRef }) => {
+//     const DB_NAME = 'ModelStorage';
+//     const DB_VERSION = 1;
 
+//     // Deserialize octree data
 //     const deserializeOctree = (serializedOctree) => {
-//         return {
-//             structure: serializedOctree.structure.map(node => ({
+//         if (!serializedOctree) {
+//             console.error('No octree data to deserialize');
+//             return null;
+//         }
+
+//         try {
+//             console.log('Starting octree deserialization', serializedOctree);
+
+//             // Deserialize bounding box vectors
+//             const boundingBox = serializedOctree.metadata.boundingBox ? {
+//                 min: new BABYLON.Vector3(
+//                     serializedOctree.metadata.boundingBox.min.x,
+//                     serializedOctree.metadata.boundingBox.min.y,
+//                     serializedOctree.metadata.boundingBox.min.z
+//                 ),
+//                 max: new BABYLON.Vector3(
+//                     serializedOctree.metadata.boundingBox.max.x,
+//                     serializedOctree.metadata.boundingBox.max.y,
+//                     serializedOctree.metadata.boundingBox.max.z
+//                 )
+//             } : null;
+
+//             // Deserialize node bounds and reconstruct structure
+//             const structure = serializedOctree.structure.map(node => ({
 //                 ...node,
 //                 bounds: node.bounds ? {
 //                     minimum: new BABYLON.Vector3(
@@ -22,222 +44,286 @@
 //                         node.bounds.maximum.y,
 //                         node.bounds.maximum.z
 //                     )
-//                 } : null
-//             })),
-//             metadata: serializedOctree.metadata
-//         };
-//     };
+//                 } : null,
+//                 // Reconstruct other node properties
+//                 meshCounts: { ...node.meshCounts },
+//                 childNodes: [...node.childNodes]
+//             }));
 
-//     const createMeshFromData = (meshData) => {
-//         if (!scene) return null;
+//             // Reconstruct the full octree object
+//             const deserializedOctree = {
+//                 metadata: {
+//                     ...serializedOctree.metadata,
+//                     boundingBox,
+//                     meshDistribution: { ...serializedOctree.metadata.meshDistribution }
+//                 },
+//                 structure
+//             };
 
-//         const mesh = new BABYLON.Mesh(meshData.name, scene);
-
-//         // Create vertex data
-//         const vertexData = new BABYLON.VertexData();
-//         vertexData.positions = new Float32Array(meshData.vertexData.positions);
-//         vertexData.indices = new Uint32Array(meshData.vertexData.indices);
-
-//         if (meshData.vertexData.normals && meshData.vertexData.normals.length > 0) {
-//             vertexData.normals = new Float32Array(meshData.vertexData.normals);
-//         }
-
-//         if (meshData.vertexData.uvs && meshData.vertexData.uvs.length > 0) {
-//             vertexData.uvs = new Float32Array(meshData.vertexData.uvs);
-//         }
-
-//         // Apply vertex data to mesh
-//         vertexData.applyToMesh(mesh);
-
-//         // Set transforms
-//         mesh.position = new BABYLON.Vector3(
-//             meshData.transforms.position.x,
-//             meshData.transforms.position.y,
-//             meshData.transforms.position.z
-//         );
-
-//         mesh.rotation = new BABYLON.Vector3(
-//             meshData.transforms.rotation.x,
-//             meshData.transforms.rotation.y,
-//             meshData.transforms.rotation.z
-//         );
-
-//         mesh.scaling = new BABYLON.Vector3(
-//             meshData.transforms.scaling.x,
-//             meshData.transforms.scaling.y,
-//             meshData.transforms.scaling.z
-//         );
-
-//         // Set world matrix if available
-//         if (meshData.transforms.worldMatrix) {
-//             const matrix = BABYLON.Matrix.FromArray(meshData.transforms.worldMatrix);
-//             mesh.setPreTransformMatrix(matrix);
-//         }
-
-//         // Create and apply material
-//         if (meshData.metadata.material) {
-//             const material = new BABYLON.StandardMaterial(meshData.metadata.material.name, scene);
-//             if (meshData.metadata.material.diffuseColor) {
-//                 material.diffuseColor = new BABYLON.Color3(
-//                     meshData.metadata.material.diffuseColor.r,
-//                     meshData.metadata.material.diffuseColor.g,
-//                     meshData.metadata.material.diffuseColor.b
-//                 );
-//             }
-//             mesh.material = material;
-//         }
-
-//         // Set visibility and enabled state
-//         mesh.isVisible = meshData.metadata.isVisible;
-//         mesh.setEnabled(meshData.metadata.isEnabled);
-
-//         return mesh;
-//     };
-
-//     const visualizeOctree = (octree) => {
-//         // Clear existing octree visualization
-//         scene.meshes
-//             .filter(mesh => mesh.name.startsWith('octreeNode_'))
-//             .forEach(mesh => mesh.dispose());
-
-//         octree.structure.forEach(node => {
-//             if (node.bounds) {
-//                 const size = new BABYLON.Vector3(
-//                     node.bounds.maximum.x - node.bounds.minimum.x,
-//                     node.bounds.maximum.y - node.bounds.minimum.y,
-//                     node.bounds.maximum.z - node.bounds.minimum.z
-//                 );
-
-//                 const center = new BABYLON.Vector3(
-//                     (node.bounds.maximum.x + node.bounds.minimum.x) / 2,
-//                     (node.bounds.maximum.y + node.bounds.minimum.y) / 2,
-//                     (node.bounds.maximum.z + node.bounds.minimum.z) / 2
-//                 );
-
-//                 const box = BABYLON.MeshBuilder.CreateBox(
-//                     `octreeNode_${node.nodeNumber}`,
-//                     { width: size.x, height: size.y, depth: size.z },
-//                     scene
-//                 );
-
-//                 box.position = center;
-
-//                 const material = new BABYLON.StandardMaterial(`octreeMat_${node.nodeNumber}`, scene);
-//                 material.wireframe = true;
-//                 material.emissiveColor = new BABYLON.Color3(
-//                     node.depth === 4 ? 1 : 0,
-//                     node.depth === 4 ? 0 : 1,
-//                     0
-//                 );
-
-//                 box.material = material;
-//                 box.isPickable = false;
-//             }
-//         });
-//     };
-
-//     const loadFromIndexedDB = async () => {
-//         if (!scene) {
-//             setStatus('Scene not initialized');
-//             return;
-//         }
-//         if (!camera) {
-//             setStatus('Camera not initialized');
-//             return;
-//         }
-
-//         try {
-//             // Clear existing meshes except lights and cameras
-//             scene.meshes
-//                 .filter(mesh => !(mesh instanceof BABYLON.Light || mesh instanceof BABYLON.Camera))
-//                 .forEach(mesh => mesh.dispose());
-
-//             setStatus('Opening database...');
-//             const db = await openDB('ModelStorage', 1);
-
-//             // Load octree
-//             setStatus('Loading octree data...');
-//             const serializedOctree = await db.get('octrees', 'mainOctree');
-//             const octree = deserializeOctree(serializedOctree);
-
-//             // Load meshes
-//             setStatus('Loading mesh data...');
-//             const modelStore = db.transaction('models', 'readonly').objectStore('models');
-//             const meshKeys = await modelStore.getAllKeys();
-//             const meshesData = await Promise.all(
-//                 meshKeys.map(key => modelStore.get(key))
-//             );
-
-//             // Create meshes
-//             setStatus('Creating meshes...');
-//             const loadedMeshes = meshesData
-//                 .filter(data => data.depth === 4) // Only get meshes at depth 4
-//                 .map(meshData => createMeshFromData(meshData))
-//                 .filter(mesh => mesh !== null);
-
-//             // Visualize octree
-//             setStatus('Visualizing octree...');
-//             visualizeOctree(octree);
-
-//             // Calculate bounding box for all loaded meshes
-//             const boundingBox = calculateBoundingBox(loadedMeshes);
-
-//             // Position camera to fit all meshes
-//             positionCamera(boundingBox);
-
-//             setStatus('Load complete');
+//             console.log('Octree deserialization complete:', deserializedOctree);
+//             return deserializedOctree;
 
 //         } catch (error) {
-//             console.error('Load error:', error);
-//             setStatus(`Error loading data: ${error.message}`);
+//             console.error('Error deserializing octree:', error);
+//             return null;
 //         }
 //     };
 
-//     const calculateBoundingBox = (meshes) => {
-//         let min = new BABYLON.Vector3(Infinity, Infinity, Infinity);
-//         let max = new BABYLON.Vector3(-Infinity, -Infinity, -Infinity);
+//     // Load and visualize octree
+//     const loadOctree = async () => {
+//         try {
+//             if (!scene) {
+//                 console.error('Scene is not available');
+//                 return;
+//             }
 
-//         meshes.forEach(mesh => {
-//             const boundingBox = mesh.getBoundingInfo().boundingBox;
-//             min = BABYLON.Vector3.Minimize(min, boundingBox.minimum);
-//             max = BABYLON.Vector3.Maximize(max, boundingBox.maximum);
-//         });
+//             console.log('Loading with scene:', scene);
 
-//         return { minimum: min, maximum: max };
+//             const db = await openDB(DB_NAME, DB_VERSION);
+//             const octreeData = await db.get('octrees', 'mainOctree');
+
+//             if (!octreeData || !octreeData.data) {
+//                 console.warn('No octree data found in IndexedDB');
+//                 return;
+//             }
+
+//             // Deserialize octree data
+//             const deserializedOctree = deserializeOctree(octreeData.data);
+//             if (!deserializedOctree) {
+//                 console.error('Failed to deserialize octree data');
+//                 return;
+//             }
+
+//             // Clear existing octree wireframes
+//             const existingWireframes = scene.meshes.filter(mesh =>
+//                 mesh.name.startsWith("octreeVisBox_")
+//             );
+//             console.log('Clearing existing wireframes:', existingWireframes.length);
+//             existingWireframes.forEach(mesh => mesh.dispose());
+
+//             // Create wireframe visualization
+//             await visualizeOctree(deserializedOctree, scene);
+
+//             // Position camera to view the octree
+//             positionCameraForOctree(deserializedOctree, scene);
+
+//             // Force scene to render
+//             scene.render();
+
+//         } catch (error) {
+//             console.error('Error loading octree from IndexedDB:', error);
+//         }
 //     };
 
-//     const positionCamera = (boundingBox) => {
-//         if (!camera || !boundingBox) return;
+// const createWireframeBox = (scene, minimum, maximum, depth = 0) => {
+//     if (!scene) {
+//         console.error('No scene provided to createWireframeBox');
+//         return null;
+//     }
 
-//         const center = BABYLON.Vector3.Center(
-//             boundingBox.minimum,
-//             boundingBox.maximum
+//     try {
+//         const size = maximum.subtract(minimum);
+//         const center = BABYLON.Vector3.Center(minimum, maximum);
+
+//         const box = BABYLON.MeshBuilder.CreateBox(
+//             `octreeVisBox_${depth}_${Math.random()}`,
+//             {
+//                 width: Math.max(0.001, size.x),
+//                 height: Math.max(0.001, size.y),
+//                 depth: Math.max(0.001, size.z)
+//             },
+//             scene
 //         );
 
-//         const size = boundingBox.maximum.subtract(boundingBox.minimum);
+//         box.position = center;
+//         const material = new BABYLON.StandardMaterial(`wireframeMat_${depth}_${Math.random()}`, scene);
+//         material.wireframe = true;
+//         material.alpha = 1;
+
+//         switch (depth) {
+//             case 0: material.emissiveColor = new BABYLON.Color3(1, 0, 0); break;
+//             case 1: material.emissiveColor = new BABYLON.Color3(0, 1, 0); break;
+//             case 2: material.emissiveColor = new BABYLON.Color3(0, 0, 1); break;
+//             case 3: material.emissiveColor = new BABYLON.Color3(1, 1, 0); break;
+//             default: material.emissiveColor = new BABYLON.Color3(1, 1, 1);
+//         }
+
+//         box.material = material;
+//         box.isPickable = false;
+//         return box;
+//     } catch (error) {
+//         console.error('Error creating wireframe box:', error);
+//         return null;
+//     }
+// };
+
+//     // // Deserialize mesh data and create mesh
+//     // const createMeshFromData = (meshData, scene) => {
+//     //     try {
+//     //         const mesh = new BABYLON.Mesh(meshData.name, scene);
+//     //         const vertexData = new BABYLON.VertexData();
+
+//     //         // Apply vertex data
+//     //         vertexData.positions = new Float32Array(meshData.vertexData.positions);
+//     //         vertexData.normals = new Float32Array(meshData.vertexData.normals);
+//     //         vertexData.indices = new Uint32Array(meshData.vertexData.indices);
+//     //         if (meshData.vertexData.uvs && meshData.vertexData.uvs.length > 0) {
+//     //             vertexData.uvs = new Float32Array(meshData.vertexData.uvs);
+//     //         }
+
+//     //         vertexData.applyToMesh(mesh);
+
+//     //         // Apply transforms
+//     //         mesh.position = new BABYLON.Vector3(
+//     //             meshData.transforms.position.x,
+//     //             meshData.transforms.position.y,
+//     //             meshData.transforms.position.z
+//     //         );
+//     //         mesh.rotation = new BABYLON.Vector3(
+//     //             meshData.transforms.rotation.x,
+//     //             meshData.transforms.rotation.y,
+//     //             meshData.transforms.rotation.z
+//     //         );
+//     //         mesh.scaling = new BABYLON.Vector3(
+//     //             meshData.transforms.scaling.x,
+//     //             meshData.transforms.scaling.y,
+//     //             meshData.transforms.scaling.z
+//     //         );
+
+//     //         // Create and apply material
+//     //         const material = new BABYLON.StandardMaterial(meshData.name + "_material", scene);
+//     //         if (meshData.metadata.material && meshData.metadata.material.diffuseColor) {
+//     //             material.diffuseColor = new BABYLON.Color3(
+//     //                 meshData.metadata.material.diffuseColor.r,
+//     //                 meshData.metadata.material.diffuseColor.g,
+//     //                 meshData.metadata.material.diffuseColor.b
+//     //             );
+//     //         } else {
+//     //             material.diffuseColor = new BABYLON.Color3(0.7, 0.7, 0.7);
+//     //         }
+//     //         mesh.material = material;
+
+//     //         return mesh;
+//     //     } catch (error) {
+//     //         console.error('Error creating mesh:', error);
+//     //         return null;
+//     //     }
+//     // };
+
+//     // // Load meshes and octree
+//     // const loadData = async () => {
+//     //     try {
+//     //         if (!scene) {
+//     //             console.error('Scene is not available');
+//     //             return;
+//     //         }
+
+//     //         const db = await openDB(DB_NAME, DB_VERSION);
+
+//     //         // Load meshes
+//     //         const modelStore = db.transaction('models', 'readonly').store;
+//     //         const meshDatas = await modelStore.getAll();
+
+//     //         // Clear existing meshes
+//     //         scene.meshes
+//     //             .filter(mesh => !mesh.name.startsWith("octreeVisBox_"))
+//     //             .forEach(mesh => mesh.dispose());
+
+//     //         // Create new meshes
+//     //         let createdMeshCount = 0;
+//     //         for (const meshData of meshDatas) {
+//     //             const mesh = createMeshFromData(meshData.data, scene);
+//     //             if (mesh) {
+//     //                 createdMeshCount++;
+//     //             }
+//     //         }
+//     //         console.log(`Created ${createdMeshCount} meshes`);
+
+//     //         // Load octree structure
+//     //         const octreeData = await db.get('octrees', 'mainOctree');
+//     //         if (!octreeData || !octreeData.data) {
+//     //             console.warn('No octree data found');
+//     //             return;
+//     //         }
+
+//     //         const deserializedOctree = deserializeOctree(octreeData.data);
+//     //         if (!deserializedOctree) {
+//     //             console.error('Failed to deserialize octree');
+//     //             return;
+//     //         }
+
+//     //         // Position camera
+//     //         positionCameraForOctree(deserializedOctree, scene);
+
+//     //         // Force scene to render
+//     //         scene.render();
+
+//     //     } catch (error) {
+//     //         console.error('Error loading data:', error);
+//     //     }
+//     // };
+
+// const visualizeOctree = async (octree, scene) => {
+//     if (!scene || !octree) {
+//         console.error('Missing scene or octree for visualization');
+//         return;
+//     }
+
+//     console.log('Starting octree visualization');
+
+//     // Create root bounding box
+//     const boundingBox = octree.metadata.boundingBox;
+//     if (boundingBox) {
+//         console.log('Creating root bounding box');
+//         const rootBox = createWireframeBox(scene, boundingBox.min, boundingBox.max, 0);
+//         if (rootBox) {
+//             console.log('Root box created');
+//         }
+//     }
+
+//     // Visualize each node
+//     let nodeCount = 0;
+//     for (const node of octree.structure) {
+//         if (node.bounds) {
+//             const box = createWireframeBox(
+//                 scene,
+//                 node.bounds.minimum,
+//                 node.bounds.maximum,
+//                 node.depth
+//             );
+//             if (box) nodeCount++;
+//         }
+//     }
+//     console.log(`Created ${nodeCount} node boxes`);
+// };
+
+//     const positionCameraForOctree = (octree, scene) => {
+//         if (!scene.activeCamera || !octree.metadata.boundingBox) return;
+
+//         const boundingBox = octree.metadata.boundingBox;
+//         const size = boundingBox.max.subtract(boundingBox.min);
 //         const maxDimension = Math.max(size.x, size.y, size.z);
 
-//         camera.setTarget(center);
+//         const camera = scene.activeCamera;
 //         camera.radius = maxDimension * 2;
-//         camera.alpha = Math.PI / 4;
 //         camera.beta = Math.PI / 3;
+//         camera.alpha = Math.PI / 4;
+//         camera.target = BABYLON.Vector3.Center(boundingBox.min, boundingBox.max);
 //     };
 
 //     return (
-//         <div className="absolute top-4 left-4 z-10">
+//         <div>
 //             <button
-//                 onClick={loadFromIndexedDB}
-//                 className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 mr-4"
+//                 onClick={loadOctree}
+//                 className="mb-4 mr-4 p-2 bg-green-500 text-white rounded hover:bg-green-600"
 //             >
-//                 Load Model
+//                 Load Octree from DB
 //             </button>
-//             <span className="bg-white p-2 rounded shadow">{status}</span>
 //         </div>
 //     );
 // };
 
 // export default Loadindexdb;
-
 
 import React, { useEffect, useRef, useState } from 'react';
 import { openDB } from 'idb';
@@ -271,83 +357,90 @@ const Loadindexdb = () => {
         };
     };
 
-    const createMeshFromData = (meshData, scene) => {
-        const mesh = new BABYLON.Mesh(meshData.name, scene);
+    // const createMeshFromData = (meshData, scene) => {
+    //     try {
+    //         const mesh = new BABYLON.Mesh(meshData.data.name, scene);
 
-        // Create vertex data
-        const vertexData = new BABYLON.VertexData();
-        vertexData.positions = new Float32Array(meshData.vertexData.positions);
-        vertexData.indices = new Uint32Array(meshData.vertexData.indices);
+    //         // Create vertex data
+    //         const vertexData = new BABYLON.VertexData();
+    //         vertexData.positions = new Float32Array(meshData.data.vertexData.positions);
+    //         vertexData.indices = new Uint32Array(meshData.data.vertexData.indices);
 
-        if (meshData.vertexData.normals && meshData.vertexData.normals.length > 0) {
-            vertexData.normals = new Float32Array(meshData.vertexData.normals);
-        }
+    //         if (meshData.data.vertexData.normals && meshData.data.vertexData.normals.length > 0) {
+    //             vertexData.normals = new Float32Array(meshData.data.vertexData.normals);
+    //         }
 
-        if (meshData.vertexData.uvs && meshData.vertexData.uvs.length > 0) {
-            vertexData.uvs = new Float32Array(meshData.vertexData.uvs);
-        }
+    //         if (meshData.data.vertexData.uvs && meshData.data.vertexData.uvs.length > 0) {
+    //             vertexData.uvs = new Float32Array(meshData.data.vertexData.uvs);
+    //         }
 
-        // Apply vertex data to mesh
-        vertexData.applyToMesh(mesh);
+    //         // Apply vertex data to mesh
+    //         vertexData.applyToMesh(mesh);
 
-        // Set transforms
-        mesh.position = new BABYLON.Vector3(
-            meshData.transforms.position.x,
-            meshData.transforms.position.y,
-            meshData.transforms.position.z
-        );
+    //         // Set transforms
+    //         mesh.position = new BABYLON.Vector3(
+    //             meshData.data.transforms.position.x,
+    //             meshData.data.transforms.position.y,
+    //             meshData.data.transforms.position.z
+    //         );
 
-        mesh.rotation = new BABYLON.Vector3(
-            meshData.transforms.rotation.x,
-            meshData.transforms.rotation.y,
-            meshData.transforms.rotation.z
-        );
+    //         mesh.rotation = new BABYLON.Vector3(
+    //             meshData.data.transforms.rotation.x,
+    //             meshData.data.transforms.rotation.y,
+    //             meshData.data.transforms.rotation.z
+    //         );
 
-        mesh.scaling = new BABYLON.Vector3(
-            meshData.transforms.scaling.x,
-            meshData.transforms.scaling.y,
-            meshData.transforms.scaling.z
-        );
+    //         mesh.scaling = new BABYLON.Vector3(
+    //             meshData.data.transforms.scaling.x,
+    //             meshData.data.transforms.scaling.y,
+    //             meshData.data.transforms.scaling.z
+    //         );
 
-        // Create and apply material
-        if (meshData.metadata.material) {
-            const material = new BABYLON.StandardMaterial(meshData.metadata.material.name, scene);
-            if (meshData.metadata.material.diffuseColor) {
-                material.diffuseColor = new BABYLON.Color3(
-                    meshData.metadata.material.diffuseColor.r,
-                    meshData.metadata.material.diffuseColor.g,
-                    meshData.metadata.material.diffuseColor.b
-                );
-            }
-            mesh.material = material;
-        }
+    //         // Create and apply material
+    //         const material = new BABYLON.StandardMaterial(`material_${mesh.name}`, scene);
+    //         material.diffuseColor = new BABYLON.Color3(0.7, 0.7, 0.7);
+    //         material.backFaceCulling = false;
+    //         mesh.material = material;
 
-        // Set visibility and enabled state
-        mesh.isVisible = meshData.metadata.isVisible;
-        mesh.setEnabled(meshData.metadata.isEnabled);
-        // Add octree-specific properties
-        mesh.nodeNumber = meshData.nodeNumber;
-        mesh.depth = meshData.depth;
-        mesh.parentNode = meshData.parentNode;
+    //         // Set metadata
+    //         mesh.nodeNumber = meshData.data.nodeNumber;
+    //         mesh.depth = meshData.data.depth;
+    //         mesh.parentNode = meshData.data.parentNode;
 
-        return mesh;
-    };
+    //         return mesh;
+    //     } catch (error) {
+    //         console.error('Error creating mesh:', error);
+    //         return null;
+    //     }
+    // };
 
-    // const visualizeOctree = (octree, scene) => {
-    //     octree.structure.forEach(node => {
+    // const visualizeOctree = (scene, octreeData) => {
+    //     // Create wireframe material
+    //     const wireframeMaterial = new BABYLON.StandardMaterial("wireframeMat", scene);
+    //     wireframeMaterial.wireframe = true;
+    //     wireframeMaterial.alpha = 0.3;
+
+    //     // Create materials for different depths
+    //     const depthMaterials = {};
+    //     for (let i = 0; i <= 4; i++) {
+    //         const material = wireframeMaterial.clone(`wireframe_${i}`);
+    //         material.emissiveColor = new BABYLON.Color3(
+    //             i === 0 ? 1 : 0,  // Red for depth 0
+    //             i === 1 ? 1 : 0,  // Green for depth 1
+    //             i === 2 ? 1 : (i === 3 ? 0.5 : 0)  // Blue/mixed for others
+    //         );
+    //         depthMaterials[i] = material;
+    //     }
+
+    //     // Visualize each node
+    //     octreeData.structure.forEach(node => {
     //         if (node.bounds) {
-    //             const size = new BABYLON.Vector3(
-    //                 node.bounds.maximum.x - node.bounds.minimum.x,
-    //                 node.bounds.maximum.y - node.bounds.minimum.y,
-    //                 node.bounds.maximum.z - node.bounds.minimum.z
-    //             );
+    //             const min = node.bounds.minimum;
+    //             const max = node.bounds.maximum;
+    //             const size = max.subtract(min);
+    //             const center = BABYLON.Vector3.Center(min, max);
 
-    //             const center = new BABYLON.Vector3(
-    //                 (node.bounds.maximum.x + node.bounds.minimum.x) / 2,
-    //                 (node.bounds.maximum.y + node.bounds.minimum.y) / 2,
-    //                 (node.bounds.maximum.z + node.bounds.minimum.z) / 2
-    //             );
-
+    //             // Create box for node visualization
     //             const box = BABYLON.MeshBuilder.CreateBox(
     //                 `octreeNode_${node.nodeNumber}`,
     //                 { width: size.x, height: size.y, depth: size.z },
@@ -355,147 +448,247 @@ const Loadindexdb = () => {
     //             );
 
     //             box.position = center;
-
-    //             const material = new BABYLON.StandardMaterial(`octreeMat_${node.nodeNumber}`, scene);
-    //             material.wireframe = true;
-    //             material.emissiveColor = new BABYLON.Color3(
-    //                 node.depth === 4 ? 1 : 0,
-    //                 node.depth === 4 ? 0 : 1,
-    //                 0
-    //             );
-
-    //             box.material = material;
+    //             box.material = depthMaterials[node.depth] || depthMaterials[0];
     //             box.isPickable = false;
-    //         }
-    //     });
-    // };
-    // const visualizeOctree = (scene, octreeData) => {
-    //     // Create materials for different depths
-    //     const materials = {
-    //         0: new BABYLON.StandardMaterial("depth0", scene),
-    //         1: new BABYLON.StandardMaterial("depth1", scene),
-    //         2: new BABYLON.StandardMaterial("depth2", scene),
-    //         3: new BABYLON.StandardMaterial("depth3", scene)
-    //     };
-
-    //     // Set up materials with different colors
-    //     Object.values(materials).forEach(material => {
-    //         material.wireframe = true;
-    //         material.alpha = 0.3;
-    //     });
-    //     materials[0].emissiveColor = new BABYLON.Color3(1, 0, 0); // Red
-    //     materials[1].emissiveColor = new BABYLON.Color3(0, 1, 0); // Green
-    //     materials[2].emissiveColor = new BABYLON.Color3(0, 0, 1); // Blue
-    //     materials[3].emissiveColor = new BABYLON.Color3(1, 1, 0); // Yellow
-
-    //     // Visualize each node in the octree
-    //     octreeData.structure.forEach(node => {
-    //         if (node.bounds) {
-    //             const min = new BABYLON.Vector3(
-    //                 node.bounds.minimum.x,
-    //                 node.bounds.minimum.y,
-    //                 node.bounds.minimum.z
-    //             );
-    //             const max = new BABYLON.Vector3(
-    //                 node.bounds.maximum.x,
-    //                 node.bounds.maximum.y,
-    //                 node.bounds.maximum.z
-    //             );
-
-    //             // Calculate size and center
-    //             const size = max.subtract(min);
-    //             const center = BABYLON.Vector3.Center(min, max);
-
-    //             // Create box for visualization
-    //             const box = BABYLON.MeshBuilder.CreateBox(
-    //                 `octreeNode_${node.nodeNumber}`,
-    //                 {
-    //                     width: size.x,
-    //                     height: size.y,
-    //                     depth: size.z
-    //                 },
-    //                 scene
-    //             );
-
-    //             // Position the box
-    //             box.position = center;
-
-    //             // Apply material based on depth
-    //             box.material = materials[node.depth] || materials[0];
-    //             box.isPickable = false;
+    //             box.visibility = 0.3;  // Make wireframe semi-transparent
     //         }
     //     });
     // };
 
-    const visualizeOctree = (scene, octreeData) => {
-        // Clear existing octree visualization
-        scene.meshes
-            .filter(mesh => mesh.name.startsWith('octreeNode_'))
-            .forEach(mesh => mesh.dispose());
+    const createMeshFromData = (meshData, scene) => {
+        try {
+            const mesh = new BABYLON.Mesh(meshData.data.name, scene);
 
-        // Create materials for different depths
-        const materials = {
-            0: new BABYLON.StandardMaterial("depth0", scene),
-            1: new BABYLON.StandardMaterial("depth1", scene),
-            2: new BABYLON.StandardMaterial("depth2", scene),
-            3: new BABYLON.StandardMaterial("depth3", scene),
-            4: new BABYLON.StandardMaterial("depth4", scene)
-        };
+            // Create vertex data
+            const vertexData = new BABYLON.VertexData();
+            vertexData.positions = new Float32Array(meshData.data.vertexData.positions);
+            vertexData.indices = new Uint32Array(meshData.data.vertexData.indices);
 
-        // Set up materials with different colors
-        Object.values(materials).forEach(material => {
-            material.wireframe = true;
-            material.alpha = 0.3;
-        });
-        materials[0].emissiveColor = new BABYLON.Color3(1, 0, 0);   // Red
-        materials[1].emissiveColor = new BABYLON.Color3(0, 1, 0);   // Green
-        materials[2].emissiveColor = new BABYLON.Color3(0, 0, 1);   // Blue
-        materials[3].emissiveColor = new BABYLON.Color3(1, 1, 0);   // Yellow
-        materials[4].emissiveColor = new BABYLON.Color3(1, 0, 1);   // Purple
-
-        // Create a map to track created boxes
-        const createdBoxes = new Map();
-
-        // Visualize each node in the octree, but only once per node
-        octreeData.structure.forEach(node => {
-            if (node.bounds && !createdBoxes.has(node.nodeNumber)) {
-                const min = new BABYLON.Vector3(
-                    node.bounds.minimum.x,
-                    node.bounds.minimum.y,
-                    node.bounds.minimum.z
-                );
-                const max = new BABYLON.Vector3(
-                    node.bounds.maximum.x,
-                    node.bounds.maximum.y,
-                    node.bounds.maximum.z
-                );
-
-                // Calculate size and center
-                const size = max.subtract(min);
-                const center = BABYLON.Vector3.Center(min, max);
-
-                // Create box for visualization
-                const box = BABYLON.MeshBuilder.CreateBox(
-                    `octreeNode_${node.nodeNumber}`,
-                    {
-                        width: size.x,
-                        height: size.y,
-                        depth: size.z
-                    },
-                    scene
-                );
-
-                // Position the box
-                box.position = center;
-
-                // Apply material based on depth
-                box.material = materials[node.depth] || materials[0];
-                box.isPickable = false;
-
-                // Track this box
-                createdBoxes.set(node.nodeNumber, box);
+            if (meshData.data.vertexData.normals && meshData.data.vertexData.normals.length > 0) {
+                vertexData.normals = new Float32Array(meshData.data.vertexData.normals);
             }
-        });
+
+            if (meshData.data.vertexData.uvs && meshData.data.vertexData.uvs.length > 0) {
+                vertexData.uvs = new Float32Array(meshData.data.vertexData.uvs);
+            }
+
+            // Apply vertex data to mesh
+            vertexData.applyToMesh(mesh);
+
+            // Set transforms
+            mesh.position = new BABYLON.Vector3(
+                meshData.data.transforms.position.x,
+                meshData.data.transforms.position.y,
+                meshData.data.transforms.position.z
+            );
+
+            mesh.rotation = new BABYLON.Vector3(
+                meshData.data.transforms.rotation.x,
+                meshData.data.transforms.rotation.y,
+                meshData.data.transforms.rotation.z
+            );
+
+            mesh.scaling = new BABYLON.Vector3(
+                meshData.data.transforms.scaling.x,
+                meshData.data.transforms.scaling.y,
+                meshData.data.transforms.scaling.z
+            );
+
+            // Create and apply material
+            const material = new BABYLON.StandardMaterial(`material_${mesh.name}`, scene);
+            material.diffuseColor = new BABYLON.Color3(0.7, 0.7, 0.7);
+            material.backFaceCulling = false;
+            material.wireframe = false; // Ensure wireframe is off
+            mesh.material = material;
+
+            // Set metadata
+            mesh.nodeNumber = meshData.data.nodeNumber;
+            mesh.depth = meshData.data.depth;
+            mesh.parentNode = meshData.data.parentNode;
+
+            // Ensure the mesh is not showing its bounding box
+            mesh.showBoundingBox = false;
+
+            return mesh;
+        } catch (error) {
+            console.error('Error creating mesh:', error);
+            return null;
+        }
+    };
+
+
+
+    // const visualizeOctree = (scene, octreeData) => {
+    //     // Clear any existing octree visualization
+    //     scene.meshes
+    //         .filter(mesh => mesh.name.startsWith('octreeNode_'))
+    //         .forEach(mesh => mesh.dispose());
+
+    //     // Create wireframe material for root octree
+    //     const wireframeMaterial = new BABYLON.StandardMaterial("wireframeMat", scene);
+    //     wireframeMaterial.wireframe = true;
+    //     wireframeMaterial.emissiveColor = new BABYLON.Color3(1, 0, 0); // Red color
+    //     wireframeMaterial.alpha = 0.3;
+
+    //     // Only visualize the root node (the encompassing octree)
+    //     const rootNode = octreeData.structure.find(node => node.depth === 0);
+
+    //     if (rootNode && rootNode.bounds) {
+    //         const min = rootNode.bounds.minimum;
+    //         const max = rootNode.bounds.maximum;
+    //         const size = max.subtract(min);
+    //         const center = BABYLON.Vector3.Center(min, max);
+
+    //         // Create box for root node visualization
+    //         const box = BABYLON.MeshBuilder.CreateBox(
+    //             'octreeNode_root',
+    //             { width: size.x, height: size.y, depth: size.z },
+    //             scene
+    //         );
+
+    //         box.position = center;
+    //         box.material = wireframeMaterial;
+    //         box.isPickable = false;
+    //         box.visibility = 0.3;  // Make wireframe semi-transparent
+    //     }
+    // };
+
+    const createWireframeBox = (scene, minimum, maximum, depth = 0) => {
+        if (!scene) {
+            console.error('No scene provided to createWireframeBox');
+            return null;
+        }
+
+        try {
+            const size = maximum.subtract(minimum);
+            const center = BABYLON.Vector3.Center(minimum, maximum);
+
+            const box = BABYLON.MeshBuilder.CreateBox(
+                `octreeVisBox_${depth}_${Math.random()}`,
+                {
+                    width: Math.max(0.001, size.x),
+                    height: Math.max(0.001, size.y),
+                    depth: Math.max(0.001, size.z)
+                },
+                scene
+            );
+
+            box.position = center;
+            const material = new BABYLON.StandardMaterial(`wireframeMat_${depth}_${Math.random()}`, scene);
+            material.wireframe = true;
+            material.alpha = 1;
+
+            switch (depth) {
+                case 0: material.emissiveColor = new BABYLON.Color3(1, 0, 0); break;
+                case 1: material.emissiveColor = new BABYLON.Color3(0, 1, 0); break;
+                case 2: material.emissiveColor = new BABYLON.Color3(0, 0, 1); break;
+                case 3: material.emissiveColor = new BABYLON.Color3(1, 1, 0); break;
+                default: material.emissiveColor = new BABYLON.Color3(1, 1, 1);
+            }
+
+            box.material = material;
+            box.isPickable = false;
+            return box;
+        } catch (error) {
+            console.error('Error creating wireframe box:', error);
+            return null;
+        }
+    };
+
+    // const visualizeOctree = async (scene,octree) => {
+    //     if (!scene || !octree) {
+    //         console.error('Missing scene or octree for visualization');
+    //         return;
+    //     }
+
+    //     console.log('Starting octree visualization');
+
+    //     // Create root bounding box
+    //     const boundingBox = octree.metadata.boundingBox;
+    //     if (boundingBox) {
+    //         console.log('Creating root bounding box');
+    //         const rootBox = createWireframeBox(scene, boundingBox.min, boundingBox.max, 0);
+    //         if (rootBox) {
+    //             console.log('Root box created');
+    //         }
+    //     }
+
+    //     // Visualize each node
+    //     let nodeCount = 0;
+    //     for (const node of octree.structure) {
+    //         if (node.bounds) {
+    //             const box = createWireframeBox(
+    //                 scene,
+    //                 node.bounds.minimum,
+    //                 node.bounds.maximum,
+    //                 node.depth
+    //             );
+    //             if (box) nodeCount++;
+    //         }
+    //     }
+    //     console.log(`Created ${nodeCount} node boxes`);
+    // };
+
+    const visualizeOctree = async (scene, octree) => {
+        if (!scene || !octree) {
+            console.error('Missing scene or octree for visualization');
+            return;
+        }
+
+        console.log('Starting octree visualization');
+
+        // Create root bounding box
+        const boundingBox = octree.metadata.boundingBox;
+        if (boundingBox) {
+            console.log('Creating root bounding box');
+            // Ensure min and max are BABYLON.Vector3 objects
+            const minVector = new BABYLON.Vector3(
+                boundingBox.min.x,
+                boundingBox.min.y,
+                boundingBox.min.z
+            );
+            const maxVector = new BABYLON.Vector3(
+                boundingBox.max.x,
+                boundingBox.max.y,
+                boundingBox.max.z
+            );
+
+            const rootBox = createWireframeBox(scene, minVector, maxVector, 0);
+            if (rootBox) {
+                console.log('Root box created');
+            }
+        }
+
+        // // Visualize each node
+        // let nodeCount = 0;
+        // for (const node of octree.structure) {
+        //     if (node.bounds) {
+        //         try {
+        //             // Ensure minimum and maximum are BABYLON.Vector3 objects
+        //             const minimum = new BABYLON.Vector3(
+        //                 node.bounds.minimum.x,
+        //                 node.bounds.minimum.y,
+        //                 node.bounds.minimum.z
+        //             );
+        //             const maximum = new BABYLON.Vector3(
+        //                 node.bounds.maximum.x,
+        //                 node.bounds.maximum.y,
+        //                 node.bounds.maximum.z
+        //             );
+
+        //             const box = createWireframeBox(
+        //                 scene,
+        //                 minimum,
+        //                 maximum,
+        //                 node.depth
+        //             );
+        //             if (box) nodeCount++;
+        //         } catch (error) {
+        //             console.error('Error creating node box:', error);
+        //         }
+        //     }
+        // }
+        // console.log(`Created ${nodeCount} node boxes`);
     };
     const setupScene = () => {
         engine = new BABYLON.Engine(canvasRef.current, true);
@@ -511,13 +704,23 @@ const Loadindexdb = () => {
             scene
         );
         camera.attachControl(canvasRef.current, true);
+        camera.wheelPrecision = 50;
+        camera.pinchPrecision = 50;
 
-        // Add light
-        new BABYLON.HemisphericLight(
+        // Add lights
+        const hemisphericLight = new BABYLON.HemisphericLight(
             "light",
             new BABYLON.Vector3(0, 1, 0),
             scene
         );
+        hemisphericLight.intensity = 0.7;
+
+        const pointLight = new BABYLON.PointLight(
+            "pointLight",
+            new BABYLON.Vector3(0, 10, 0),
+            scene
+        );
+        pointLight.intensity = 0.5;
 
         engine.runRenderLoop(() => {
             scene.render();
@@ -530,372 +733,73 @@ const Loadindexdb = () => {
         return scene;
     };
 
-    const isInsideNode = (mesh, bounds) => {
-        const center = mesh.getBoundingInfo().boundingBox.centerWorld;
-        const min = bounds.minimum;
-        const max = bounds.maximum;
-
-        return (center.x >= min.x && center.x <= max.x &&
-            center.y >= min.y && center.y <= max.y &&
-            center.z >= min.z && center.z <= max.z);
-    };
-
-    // const loadFromIndexedDB = async () => {
-    //     try {
-    //         setStatus('Opening database...');
-    //         const db = await openDB('ModelStorage', 1);
-
-    //         // Load octree
-    //         setStatus('Loading octree data...');
-    //         const serializedOctree = await db.get('octrees', 'mainOctree');
-    //         const octree = deserializeOctree(serializedOctree);
-
-    //         // Load meshes
-    //         setStatus('Loading mesh data...');
-    //         const modelStore = db.transaction('models', 'readonly').objectStore('models');
-    //         const meshKeys = await modelStore.getAllKeys();
-    //         const meshesData = await Promise.all(
-    //             meshKeys.map(key => modelStore.get(key))
-    //         );
-
-    //         // Setup scene
-    //         setStatus('Setting up scene...');
-    //         const scene = setupScene();
-
-    //         // Create meshes
-    //         setStatus('Creating meshes...');
-    //         const loadedMeshes = meshesData
-    //             .filter(data => data.depth === 4) // Only get meshes at depth 4
-    //             .map(meshData => createMeshFromData(meshData, scene));
-
-    //         // Visualize octree
-    //         setStatus('Visualizing octree...');
-    //         visualizeOctree(octree, scene);
-
-    //         // Position camera to fit all meshes
-    //         const boundingBox = calculateBoundingBox(loadedMeshes);
-    //         positionCamera(boundingBox);
-
-    //         setStatus('Load complete');
-
-    //     } catch (error) {
-    //         console.error('Load error:', error);
-    //         setStatus(`Error loading data: ${error.message}`);
-    //     }
-    // };
-
-
-    // const loadFromIndexedDB = async () => {
-    //     try {
-    //         setStatus('Opening database...');
-    //         const db = await openDB('ModelStorage', 1);
-
-    //         // Load octree first
-    //         setStatus('Loading octree data...');
-    //         const serializedOctree = await db.get('octrees', 'mainOctree');
-
-    //         if (!serializedOctree) {
-    //             throw new Error('No octree data found');
-    //         }
-
-    //         // Load meshes
-    //         setStatus('Loading mesh data...');
-    //         const modelStore = db.transaction('models', 'readonly').objectStore('models');
-    //         const meshKeys = await modelStore.getAllKeys();
-    //         const meshesData = await Promise.all(
-    //             meshKeys.map(key => modelStore.get(key))
-    //         );
-
-    //         // Setup scene if not already set up
-    //         const scene = setupScene();
-
-    //         // Create meshes from loaded data
-    //         setStatus('Creating meshes...');
-    //         const loadedMeshes = meshesData.map(meshData => 
-    //             createMeshFromData(meshData, scene)
-    //         ).filter(mesh => mesh !== null);
-
-    //         // Visualize the octree structure
-    //         setStatus('Visualizing octree...');
-    //         visualizeOctree(scene, serializedOctree);
-
-    //         // Position camera to fit all loaded content
-    //         const boundingBox = calculateBoundingBox(loadedMeshes);
-    //         positionCamera(boundingBox);
-
-    //         // Enable octree for loaded meshes
-    //         loadedMeshes.forEach(mesh => {
-    //             // Map mesh to its octree node based on position
-    //             const nodeForMesh = findNodeForMesh(serializedOctree, mesh);
-    //             if (nodeForMesh) {
-    //                 mesh.nodeNumber = nodeForMesh.nodeNumber;
-    //             }
-    //         });
-
-    //         setStatus('Load complete');
-
-    //     } catch (error) {
-    //         console.error('Load error:', error);
-    //         setStatus(`Error loading data: ${error.message}`);
-    //     }
-    // };
-    // Modified loadFromIndexedDB function
-
-
-    //     const loadFromIndexedDB = async () => {
-    //     try {
-    //         setStatus('Opening database...');
-    //         const db = await openDB('ModelStorage', 1);
-
-    //         // Load octree first
-    //         setStatus('Loading octree data...');
-    //         const serializedOctree = await db.get('octrees', 'mainOctree');
-
-    //         if (!serializedOctree) {
-    //             throw new Error('No octree data found');
-    //         }
-
-    //         // Load meshes
-    //         setStatus('Loading mesh data...');
-    //         const modelStore = db.transaction('models', 'readonly').objectStore('models');
-    //         const meshKeys = await modelStore.getAllKeys();
-    //         const meshesData = await Promise.all(
-    //             meshKeys.map(key => modelStore.get(key))
-    //         );
-
-    //         // Setup scene if not already set up
-    //         const scene = setupScene();
-
-    //         // First, create all meshes and store them in an array
-    //         setStatus('Creating meshes...');
-    //         const allMeshes = [];
-    //         for (const meshData of meshesData) {
-    //             const mesh = createMeshFromData(meshData, scene);
-    //             if (mesh) {
-    //                 // Store node information in mesh
-    //                 mesh.nodeNumber = meshData.nodeNumber;
-    //                 mesh.depth = meshData.depth;
-    //                 allMeshes.push(mesh);
-    //             }
-    //         }
-
-    //         // Visualize the single octree structure
-    //         setStatus('Visualizing octree...');
-    //         visualizeOctree(scene, serializedOctree);
-
-    //         // Calculate cumulative bounding box from all meshes
-    //         const boundingBox = calculateBoundingBox(allMeshes);
-    //         positionCamera(boundingBox);
-
-    //         // Organize meshes according to octree structure
-    //         serializedOctree.structure.forEach(node => {
-    //             // Find meshes belonging to this node
-    //             const nodeMeshes = allMeshes.filter(mesh => 
-    //                 mesh.nodeNumber === node.nodeNumber
-    //             );
-
-    //             // Set visibility/material based on node depth or other criteria
-    //             nodeMeshes.forEach(mesh => {
-    //                 // Set mesh properties based on its node
-    //                 mesh.isVisible = true;
-
-    //                 // Optional: Color meshes based on their depth in the octree
-    //                 const material = new BABYLON.StandardMaterial(`mat_${mesh.nodeNumber}`, scene);
-    //                 material.diffuseColor = new BABYLON.Color3(
-    //                     node.depth / 4,  // Vary color based on depth
-    //                     1 - (node.depth / 4),
-    //                     0.5
-    //                 );
-    //                 mesh.material = material;
-    //             });
-    //         });
-
-    //         setStatus('Load complete');
-
-    //     } catch (error) {
-    //         console.error('Load error:', error);
-    //         setStatus(`Error loading data: ${error.message}`);
-    //     }
-    // };
-
     const loadFromIndexedDB = async () => {
         try {
             setStatus('Opening database...');
             const db = await openDB('ModelStorage', 1);
 
-            // Load octree first
+            // Load octree data
             setStatus('Loading octree data...');
-            const serializedOctree = await db.get('octrees', 'mainOctree');
-
-            if (!serializedOctree) {
+            const octreeData = await db.get('octrees', 'mainOctree');
+            if (!octreeData || !octreeData.data) {
                 throw new Error('No octree data found');
             }
 
-            // Load meshes
+            // Load mesh data
             setStatus('Loading mesh data...');
-            const modelStore = db.transaction('models', 'readonly').objectStore('models');
-            const meshKeys = await modelStore.getAllKeys();
-            const meshesData = await Promise.all(
-                meshKeys.map(key => modelStore.get(key))
-            );
+            const meshesData = await db.getAll('models');
+            if (!meshesData || meshesData.length === 0) {
+                throw new Error('No mesh data found');
+            }
 
-            // Setup scene if not already set up
+            // Setup scene
             const scene = setupScene();
 
-            // First load all meshes
+            // Create meshes
             setStatus('Creating meshes...');
-            const allMeshes = [];
+            const loadedMeshes = [];
             for (const meshData of meshesData) {
-                try {
-                    const mesh = createMeshFromData(meshData, scene);
-                    if (mesh) {
-                        // Initially set all meshes as invisible
-                        mesh.isVisible = false;
-                        allMeshes.push(mesh);
-                    }
-                } catch (err) {
-                    console.error(`Error creating mesh for ${meshData.name}:`, err);
+                const mesh = createMeshFromData(meshData, scene);
+                if (mesh) {
+                    loadedMeshes.push(mesh);
                 }
             }
 
-            // Calculate cumulative bounding box for all meshes
-            setStatus('Calculating scene bounds...');
-            const totalBoundingBox = calculateBoundingBox(allMeshes);
-
-            // Deserialize and visualize the single octree structure
-            setStatus('Visualizing octree structure...');
-            const octree = deserializeOctree(serializedOctree);
-
-            // Clear any existing octree visualization
-            scene.meshes
-                .filter(mesh => mesh.name.startsWith('octreeNode_'))
-                .forEach(mesh => mesh.dispose());
-
-            // Visualize the single octree
+            // Deserialize and visualize octree
+            setStatus('Visualizing octree...');
+            const octree = deserializeOctree(octreeData.data);
             visualizeOctree(scene, octree);
 
-            // Position camera based on total bounds
+            // Position camera to view all content
             setStatus('Positioning camera...');
-            positionCamera(totalBoundingBox);
-
-            // Create materials for different depths
-            const depthMaterials = {};
-            for (let i = 0; i <= 4; i++) {
-                const material = new BABYLON.StandardMaterial(`depth_material_${i}`, scene);
-                material.diffuseColor = new BABYLON.Color3(
-                    i / 4,
-                    1 - (i / 4),
-                    0.5
+            if (octreeData.data.metadata.boundingBox) {
+                const min = new BABYLON.Vector3(
+                    octreeData.data.metadata.boundingBox.min.x,
+                    octreeData.data.metadata.boundingBox.min.y,
+                    octreeData.data.metadata.boundingBox.min.z
                 );
-                depthMaterials[i] = material;
+                const max = new BABYLON.Vector3(
+                    octreeData.data.metadata.boundingBox.max.x,
+                    octreeData.data.metadata.boundingBox.max.y,
+                    octreeData.data.metadata.boundingBox.max.z
+                );
+
+                const center = BABYLON.Vector3.Center(min, max);
+                const size = max.subtract(min);
+                const maxDimension = Math.max(size.x, size.y, size.z);
+
+                camera.setTarget(center);
+                camera.radius = maxDimension * 2;
+                camera.alpha = Math.PI / 4;
+                camera.beta = Math.PI / 3;
             }
 
-            // Organize and show meshes according to octree structure
-            setStatus('Organizing meshes in octree...');
-            octree.structure.forEach(node => {
-                // Find meshes that belong to this node
-                const nodeMeshes = allMeshes.filter(mesh => {
-                    const meshBounds = mesh.getBoundingInfo().boundingBox;
-                    const meshCenter = meshBounds.centerWorld;
-
-                    // Check if mesh center is within node bounds
-                    if (!node.bounds) return false;
-
-                    const min = node.bounds.minimum;
-                    const max = node.bounds.maximum;
-
-                    return (
-                        meshCenter.x >= min.x && meshCenter.x <= max.x &&
-                        meshCenter.y >= min.y && meshCenter.y <= max.y &&
-                        meshCenter.z >= min.z && meshCenter.z <= max.z
-                    );
-                });
-
-                // Process meshes in this node
-                nodeMeshes.forEach(mesh => {
-                    // Store node information in mesh
-                    mesh.nodeNumber = node.nodeNumber;
-                    mesh.depth = node.depth;
-
-                    // Make mesh visible
-                    mesh.isVisible = true;
-
-                    // Apply depth-based material
-                    mesh.material = depthMaterials[node.depth].clone(`mat_${mesh.nodeNumber}_${mesh.name}`);
-                });
-            });
-
-            // Log statistics
-            const visibleMeshCount = allMeshes.filter(mesh => mesh.isVisible).length;
-            console.log(`Total meshes loaded: ${allMeshes.length}`);
-            console.log(`Visible meshes: ${visibleMeshCount}`);
-            console.log(`Octree nodes: ${octree.structure.length}`);
-
-            setStatus('Load complete');
+            setStatus(`Loaded ${loadedMeshes.length} meshes and ${octree.structure.length} octree nodes`);
 
         } catch (error) {
             console.error('Load error:', error);
-            setStatus(`Error loading data: ${error.message}`);
-
-            // Additional error details
-            if (error.stack) {
-                console.error('Error stack:', error.stack);
-            }
+            setStatus(`Error: ${error.message}`);
         }
-    };
-
-    // Helper function to find appropriate node for a mesh
-    const findNodeForMesh = (octreeData, mesh) => {
-        const meshCenter = mesh.getBoundingInfo().boundingBox.centerWorld;
-
-        return octreeData.structure.find(node => {
-            if (!node.bounds) return false;
-
-            const min = new BABYLON.Vector3(
-                node.bounds.minimum.x,
-                node.bounds.minimum.y,
-                node.bounds.minimum.z
-            );
-            const max = new BABYLON.Vector3(
-                node.bounds.maximum.x,
-                node.bounds.maximum.y,
-                node.bounds.maximum.z
-            );
-
-            return meshCenter.x >= min.x && meshCenter.x <= max.x &&
-                meshCenter.y >= min.y && meshCenter.y <= max.y &&
-                meshCenter.z >= min.z && meshCenter.z <= max.z;
-        });
-    };
-
-    const calculateBoundingBox = (meshes) => {
-        let min = new BABYLON.Vector3(Infinity, Infinity, Infinity);
-        let max = new BABYLON.Vector3(-Infinity, -Infinity, -Infinity);
-
-        meshes.forEach(mesh => {
-            const boundingBox = mesh.getBoundingInfo().boundingBox;
-            min = BABYLON.Vector3.Minimize(min, boundingBox.minimum);
-            max = BABYLON.Vector3.Maximize(max, boundingBox.maximum);
-        });
-
-        return { minimum: min, maximum: max };
-    };
-
-    const positionCamera = (boundingBox) => {
-        if (!camera || !boundingBox) return;
-
-        const center = BABYLON.Vector3.Center(
-            boundingBox.minimum,
-            boundingBox.maximum
-        );
-
-        const size = boundingBox.maximum.subtract(boundingBox.minimum);
-        const maxDimension = Math.max(size.x, size.y, size.z);
-
-        camera.setTarget(center);
-        camera.radius = maxDimension * 2;
-        camera.alpha = Math.PI / 4;
-        camera.beta = Math.PI / 3;
     };
 
     useEffect(() => {
