@@ -103,7 +103,7 @@ app.whenReady().then(() => {
     
             if (!result.canceled && result.filePaths.length > 0) {
                 const fileInfoArray = result.filePaths.map(fullPath => ({
-                    convertedFilePath: fullPath,
+                    filePath: fullPath,
                     convertedFileName: path.basename(fullPath)
                 }));
     
@@ -114,6 +114,31 @@ app.whenReady().then(() => {
         } catch (err) {
             console.error('Error in open-file-dialog:', err);
             event.reply('gbl-file-value', null);
+        }
+    });
+
+    ipcMain.on('open-glbfile-mesh', async (event) => {
+        try {
+            const result = await dialog.showOpenDialog({
+                properties: ['openFile', 'multiSelections'],
+                filters: [{ name: 'Supported Files', extensions: ['html', 'htm', 'glb'] }]
+            });
+    
+            console.log(result);
+    
+            if (!result.canceled && result.filePaths.length > 0) {
+                const fileInfoArray = result.filePaths.map(fullPath => ({
+                    convertedFilePath: fullPath,
+                    convertedFileName: path.basename(fullPath)
+                }));
+    
+                event.reply('gbl-file-mesh', fileInfoArray);
+            } else {
+                event.reply('gbl-file-mesh', null);
+            }
+        } catch (err) {
+            console.error('Error in open-file-dialog:', err);
+            event.reply('gbl-file-mesh', null);
         }
     });
 })

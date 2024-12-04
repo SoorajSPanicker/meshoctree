@@ -1699,26 +1699,6 @@
 // export default Fbxload;
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 import React, { useEffect, useRef, useState } from 'react';
 import { calculateBoundingBoxes, createBoundingBoxMesh } from './Bbload';
 import { createCustomOctree, visualizeCustomOctree, initializeScene, positionCameraToFitBoundingBox } from './Octreecreation';
@@ -1764,8 +1744,12 @@ function Fbxload() {
     const [orimeshdatas, setorimeshdatas] = useState([])
     const [octreedatas, setoctreedatas] = useState({})
     const [currentScene, setCurrentScene] = useState(null);
+    const [buttonState, setButtonState] = useState({
+        text: 'Download Model',
+        disabled: false
+    });
     let loadedMeshes = [];
-    let allLoadedMeshes = [];
+    const [allLoadedMeshes, setAllLoadedMeshes] = useState([]);
     let Fullmeshes = [];
 
     const canvasRef = useRef(null);
@@ -1777,6 +1761,10 @@ function Fbxload() {
 
     const handleglbSelect = () => {
         window.api.send('open-glbfile-dialog');
+    };
+
+    const handlemeshfile = () => {
+        window.api.send('open-glbfile-mesh');
     };
 
     const createWireframeBox = (scene, minimum, maximum, depth = 0) => {
@@ -1976,8 +1964,226 @@ function Fbxload() {
         return radiusScreen * engine.getRenderWidth();
     };
 
+    // const simplifyMesh = (mesh, angleThreshold) => {
+    //     console.log(mesh);
+    //     if (!mesh) return null;
+
+    //     const positions = mesh.getVerticesData(BABYLON.VertexBuffer.PositionKind);
+    //     const normals = mesh.getVerticesData(BABYLON.VertexBuffer.NormalKind);
+    //     const indices = mesh.getIndices();
+
+    //     if (!positions || !normals || !indices) {
+    //         console.error("Invalid mesh data");
+    //         return mesh;
+    //     }
+
+    //     // Calculate face normals and centers
+    //     const faceNormals = [];
+    //     const faceCenters = [];
+    //     const worldMatrix = mesh.computeWorldMatrix(true);
+
+    //     for (let i = 0; i < indices.length; i += 3) {
+    //         const p1 = BABYLON.Vector3.TransformCoordinates(
+    //             new BABYLON.Vector3(
+    //                 positions[indices[i] * 3],
+    //                 positions[indices[i] * 3 + 1],
+    //                 positions[indices[i] * 3 + 2]
+    //             ),
+    //             worldMatrix
+    //         );
+    //         const p2 = BABYLON.Vector3.TransformCoordinates(
+    //             new BABYLON.Vector3(
+    //                 positions[indices[i + 1] * 3],
+    //                 positions[indices[i + 1] * 3 + 1],
+    //                 positions[indices[i + 1] * 3 + 2]
+    //             ),
+    //             worldMatrix
+    //         );
+    //         const p3 = BABYLON.Vector3.TransformCoordinates(
+    //             new BABYLON.Vector3(
+    //                 positions[indices[i + 2] * 3],
+    //                 positions[indices[i + 2] * 3 + 1],
+    //                 positions[indices[i + 2] * 3 + 2]
+    //             ),
+    //             worldMatrix
+    //         );
+
+    //         // Calculate face normal
+    //         const v1 = p2.subtract(p1);
+    //         const v2 = p3.subtract(p1);
+    //         const normal = BABYLON.Vector3.Cross(v1, v2).normalize();
+    //         faceNormals.push(normal);
+
+    //         // Calculate face center
+    //         const center = p1.add(p2).add(p3).scale(1 / 3);
+    //         faceCenters.push(center);
+    //     }
+
+    //     // Calculate average distance between adjacent faces with similar normals
+    //     let totalDistance = 0;
+    //     let validPairCount = 0;
+    //     const angleThresholdRad = (angleThreshold * Math.PI) / 180;
+
+    //     for (let i = 0; i < faceNormals.length; i++) {
+    //         for (let j = i + 1; j < faceNormals.length; j++) {
+    //             const normalAngle = Math.acos(
+    //                 BABYLON.Vector3.Dot(faceNormals[i], faceNormals[j])
+    //             );
+
+    //             if (normalAngle <= angleThresholdRad) {
+    //                 const distance = BABYLON.Vector3.Distance(
+    //                     faceCenters[i],
+    //                     faceCenters[j]
+    //                 );
+    //                 totalDistance += distance;
+    //                 validPairCount++;
+    //             }
+    //         }
+    //     }
+
+    //     // Calculate position precision based on average distance
+    //     const averageDistance = validPairCount > 0 ? totalDistance / validPairCount : 0.001;
+    //     const angleFactor = Math.max(0.001, angleThreshold / 180);
+
+    //     // Calculate maximum allowed distance based on angle threshold
+    //     const maxAllowedDistance = averageDistance * Math.tan(angleThresholdRad);
+    //     let positionPrecision;
+    //     positionPrecision = maxAllowedDistance + (angleFactor * 0.1);
+
+    //     // Structure to hold vertex data
+    //     class VertexData {
+    //         constructor(position, normal, originalIndex) {
+    //             this.position = position;
+    //             this.normal = normal;
+    //             this.originalIndex = originalIndex;
+    //             this.mergedIndices = new Set([originalIndex]);
+    //         }
+    //     }
+
+    //     // Convert positions to world space and create vertex data
+    //     const vertices = [];
+    //     const vertexMap = new Map();
+
+    //     for (let i = 0; i < positions.length; i += 3) {
+    //         const worldPos = BABYLON.Vector3.TransformCoordinates(
+    //             new BABYLON.Vector3(positions[i], positions[i + 1], positions[i + 2]),
+    //             worldMatrix
+    //         );
+
+    //         const worldNormal = BABYLON.Vector3.TransformNormal(
+    //             new BABYLON.Vector3(normals[i], normals[i + 1], normals[i + 2]),
+    //             worldMatrix
+    //         ).normalize();
+
+    //         vertices.push(new VertexData(worldPos, worldNormal, i / 3));
+    //     }
+
+    //     // Merge vertices
+    //     const mergedVertices = [];
+    //     const indexMap = new Map();
+    //     // const angleThresholdRad = (angleThreshold * Math.PI) / 180;
+
+    //     for (const vertex of vertices) {
+    //         let merged = false;
+
+    //         // Check against existing merged vertices
+    //         for (const mergedVertex of mergedVertices) {
+    //             const posDist = BABYLON.Vector3.Distance(vertex.position, mergedVertex.position);
+
+    //             if (posDist <= positionPrecision) {
+    //                 const normalAngle = Math.acos(
+    //                     BABYLON.Vector3.Dot(vertex.normal, mergedVertex.normal)
+    //                 );
+
+    //                 if (normalAngle <= angleThresholdRad) {
+    //                     // Merge this vertex
+    //                     mergedVertex.position = mergedVertex.position.scale(0.5).add(vertex.position.scale(0.5));
+    //                     mergedVertex.normal = mergedVertex.normal.add(vertex.normal).normalize();
+    //                     mergedVertex.mergedIndices.add(vertex.originalIndex);
+    //                     indexMap.set(vertex.originalIndex, mergedVertices.indexOf(mergedVertex));
+    //                     merged = true;
+    //                     break;
+    //                 }
+    //             }
+    //         }
+
+    //         if (!merged) {
+    //             indexMap.set(vertex.originalIndex, mergedVertices.length);
+    //             mergedVertices.push(vertex);
+    //         }
+    //     }
+
+    //     // Create new buffers
+    //     const newPositions = [];
+    //     const newNormals = [];
+    //     const newIndices = [];
+    //     const processedFaces = new Set();
+
+    //     // Add merged vertices to buffers
+    //     mergedVertices.forEach(vertex => {
+    //         newPositions.push(vertex.position.x, vertex.position.y, vertex.position.z);
+    //         newNormals.push(vertex.normal.x, vertex.normal.y, vertex.normal.z);
+    //     });
+
+    //     // Process faces
+    //     for (let i = 0; i < indices.length; i += 3) {
+    //         const idx1 = indexMap.get(indices[i]);
+    //         const idx2 = indexMap.get(indices[i + 1]);
+    //         const idx3 = indexMap.get(indices[i + 2]);
+
+    //         if (idx1 === undefined || idx2 === undefined || idx3 === undefined) continue;
+    //         if (idx1 === idx2 || idx2 === idx3 || idx3 === idx1) continue;
+
+    //         // Calculate face normal and area
+    //         const p1 = new BABYLON.Vector3(
+    //             newPositions[idx1 * 3],
+    //             newPositions[idx1 * 3 + 1],
+    //             newPositions[idx1 * 3 + 2]
+    //         );
+    //         const p2 = new BABYLON.Vector3(
+    //             newPositions[idx2 * 3],
+    //             newPositions[idx2 * 3 + 1],
+    //             newPositions[idx2 * 3 + 2]
+    //         );
+    //         const p3 = new BABYLON.Vector3(
+    //             newPositions[idx3 * 3],
+    //             newPositions[idx3 * 3 + 1],
+    //             newPositions[idx3 * 3 + 2]
+    //         );
+
+    //         const v1 = p2.subtract(p1);
+    //         const v2 = p3.subtract(p1);
+    //         const normal = BABYLON.Vector3.Cross(v1, v2);
+    //         const area = normal.length() / 2;
+
+    //         if (area < 0.000001) continue;
+
+    //         const faceKey = [idx1, idx2, idx3].sort().join(',');
+    //         if (!processedFaces.has(faceKey)) {
+    //             newIndices.push(idx1, idx2, idx3);
+    //             processedFaces.add(faceKey);
+    //         }
+    //     }
+
+    //     // Create new mesh
+    //     const simplified = new BABYLON.Mesh("simplified", mesh.getScene());
+    //     const vertexData = new BABYLON.VertexData();
+    //     vertexData.positions = new Float32Array(newPositions);
+    //     vertexData.normals = new Float32Array(newNormals);
+    //     vertexData.indices = new Uint32Array(newIndices);
+    //     vertexData.applyToMesh(simplified);
+
+    //     // Copy transforms
+    //     simplified.position.copyFrom(mesh.position);
+    //     simplified.rotation.copyFrom(mesh.rotation);
+    //     simplified.scaling.copyFrom(mesh.scaling);
+
+    //     return simplified;
+    // };
+
+    // Add function to handle LOD merging
+
     const simplifyMesh = (mesh, angleThreshold) => {
-        console.log(mesh);
         if (!mesh) return null;
 
         const positions = mesh.getVerticesData(BABYLON.VertexBuffer.PositionKind);
@@ -1989,6 +2195,20 @@ function Fbxload() {
             return mesh;
         }
 
+        const initialFaceCount = mesh.getTotalIndices() / 3;
+        console.log("Initial face count:", initialFaceCount);
+
+        if (initialFaceCount <= 64) {
+            console.warn('Skip simplify mesh - initial face count less than 64');
+            const retainedMesh = mesh.clone("retained_" + mesh.name);
+            if (mesh.material) {
+                retainedMesh.material = mesh.material.clone("retained_material_" + mesh.material.name);
+            }
+            retainedMesh.position = mesh.position.clone();
+            retainedMesh.rotation = mesh.rotation.clone();
+            retainedMesh.scaling = mesh.scaling.clone();
+            return retainedMesh;
+        }
         // Calculate face normals and centers
         const faceNormals = [];
         const faceCenters = [];
@@ -2193,7 +2413,6 @@ function Fbxload() {
         return simplified;
     };
 
-    // Add function to handle LOD merging
     const processLODMerging = async () => {
         console.log('Initial max coverage:', initialMaxCoverage);
 
@@ -3567,6 +3786,10 @@ function Fbxload() {
         console.log(AllCumulativeBoundingBox);
     }, [AllCumulativeBoundingBox])
 
+    useEffect(() => {
+        console.log(allLoadedMeshes);
+    }, [allLoadedMeshes])
+
     const collectOctreeInfo = (convertedBoundingBox) => {
         console.log(convertedBoundingBox);
         const octreeInfo = {
@@ -3673,6 +3896,55 @@ function Fbxload() {
 
     };
 
+    const handleDownload = async () => {
+        console.log('Total meshes to export:', allLoadedMeshes.length);
+
+        if (allLoadedMeshes && allLoadedMeshes.length > 0) {
+            setButtonState({ text: 'Exporting...', disabled: true });
+
+            try {
+                // Filter valid meshes
+                const validMeshes = allLoadedMeshes.filter(mesh =>
+                    mesh && mesh.geometry && mesh.isEnabled !== false
+                );
+
+                console.log('Valid meshes for export:', validMeshes.length);
+
+                if (validMeshes.length === 0) {
+                    throw new Error("No valid meshes to export");
+                }
+
+                const glbData = await exportGLB(validMeshes);
+
+                if (glbData && glbData.blob) {
+                    const url = URL.createObjectURL(glbData.blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'all_meshes.glb';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+
+                    console.log(`Successfully exported ${validMeshes.length} meshes, total size: ${(glbData.size / 1024 / 1024).toFixed(2)}MB`);
+
+                    setButtonState({ text: 'Download Complete', disabled: true });
+                    setTimeout(() => {
+                        setButtonState({ text: 'Download Model', disabled: false });
+                    }, 2000);
+                }
+            } catch (error) {
+                console.error("Download failed:", error);
+                setButtonState({ text: 'Export Failed', disabled: true });
+                setTimeout(() => {
+                    setButtonState({ text: 'Download Model', disabled: false });
+                }, 2000);
+            }
+        } else {
+            console.warn("No meshes available to download");
+        }
+    };
+
     useEffect(() => {
 
         if (canvasRef.current && !sceneRef.current) {
@@ -3721,9 +3993,9 @@ function Fbxload() {
             window.addEventListener('resize', () => {
                 engine.resize();
             });
-            camera.onViewMatrixChangedObservable.add(() => {
-                updateLODVisibility();
-            });
+            // camera.onViewMatrixChangedObservable.add(() => {
+            //     updateLODVisibility();
+            // });
 
 
         }
@@ -3750,33 +4022,33 @@ function Fbxload() {
                 console.log('Selected files:', fileInfoArray);
                 // window.api.send('fbx-gltf-converter', fileInfoArray);
                 try {
-                    const { individualResults, cumulativeBoundingBox } =
-                        await calculateBoundingBoxes(fileInfoArray, canvasRef.current);
-                    console.log(individualResults);
-                    console.log(cumulativeBoundingBox);
-                    // Convert bounding box vectors to BABYLON.Vector3 objects
-                    const convertedBoundingBox = {
-                        min: new BABYLON.Vector3(
-                            cumulativeBoundingBox.min.x,
-                            cumulativeBoundingBox.min.y,
-                            cumulativeBoundingBox.min.z
-                        ),
-                        max: new BABYLON.Vector3(
-                            cumulativeBoundingBox.max.x,
-                            cumulativeBoundingBox.max.y,
-                            cumulativeBoundingBox.max.z
-                        )
-                    };
+                    // const { individualResults, cumulativeBoundingBox } =
+                    //     await calculateBoundingBoxes(fileInfoArray, canvasRef.current);
+                    // console.log(individualResults);
+                    // console.log(cumulativeBoundingBox);
+                    // // Convert bounding box vectors to BABYLON.Vector3 objects
+                    // const convertedBoundingBox = {
+                    //     min: new BABYLON.Vector3(
+                    //         cumulativeBoundingBox.min.x,
+                    //         cumulativeBoundingBox.min.y,
+                    //         cumulativeBoundingBox.min.z
+                    //     ),
+                    //     max: new BABYLON.Vector3(
+                    //         cumulativeBoundingBox.max.x,
+                    //         cumulativeBoundingBox.max.y,
+                    //         cumulativeBoundingBox.max.z
+                    //     )
+                    // };
 
-                    setBoundingBoxes(individualResults);
-                    setCumulativeBoundingBox(convertedBoundingBox);
-                    console.log("conversion end");
+                    // setBoundingBoxes(individualResults);
+                    // setCumulativeBoundingBox(convertedBoundingBox);
+                    // console.log("conversion end");
 
-                    if (scene && convertedBoundingBox) {
+                    if (scene) {
                         // let allLoadedMeshes = []; // To store all meshes from all files
 
                         // Loop through individualResults and load each file
-                        for (const { filePath } of individualResults) {
+                        for (const { filePath } of fileInfoArray) {
                             console.log(`Loading file: ${filePath}`);
                             // const result = await BABYLON.SceneLoader.ImportMeshAsync("", "", filePath, scene, (evt) => {
                             //     // This callback runs while loading
@@ -3817,34 +4089,41 @@ function Fbxload() {
                             // Create simplified versions of each mesh
                             for (const mesh of loadedMeshes) {
                                 try {
-                                    // Create LOD versions with different angle thresholds
-                                    const lod1 = simplifyMesh(mesh, 20);
-                                    const lod2 = simplifyMesh(mesh, 10);
-                                    const lod3 = simplifyMesh(mesh, 5);
+                                    const lod1 = await simplifyMesh(mesh, 3);
+                                    console.log(lod1)
+                                    const lod2 = await simplifyMesh(lod1, 10);
+                                    console.log(lod2)
+                                    const lod3 = await simplifyMesh(lod2, 5);
+                                    console.log(lod3)
+
+                                    let newMeshes = [];
 
                                     if (lod1) {
-                                        lod1.name = `${mesh.name}_lpoly_angle20`;
+                                        lod1.name = `${mesh.name}_hpoly_angle3`;
                                         lod1.isVisible = false;
                                         lod1.setEnabled(false);
-                                        allLoadedMeshes.push(lod1);
+                                        newMeshes.push(lod1);
                                     }
 
                                     if (lod2) {
                                         lod2.name = `${mesh.name}_mpoly_angle10`;
                                         lod2.isVisible = false;
                                         lod2.setEnabled(false);
-                                        allLoadedMeshes.push(lod2);
+                                        newMeshes.push(lod2);
                                     }
 
                                     if (lod3) {
-                                        lod3.name = `${mesh.name}_hpoly_angle5`;
+                                        lod3.name = `${mesh.name}_lpoly_angle20`;
                                         lod3.isVisible = false;
                                         lod3.setEnabled(false);
-                                        allLoadedMeshes.push(lod3);
+                                        newMeshes.push(lod3);
                                     }
 
-                                    // // Add original mesh to allLoadedMeshes as well
-                                    // allLoadedMeshes.push(mesh);
+                                    // Add original mesh as well
+                                    newMeshes.push(mesh);
+
+                                    // Update state with new meshes
+                                    setAllLoadedMeshes(prevMeshes => [...prevMeshes, ...newMeshes]);
 
                                 } catch (error) {
                                     console.error(`Error simplifying mesh ${mesh.name}:`, error);
@@ -3891,6 +4170,161 @@ function Fbxload() {
                         //     // console.log(octreedata);
                         //     // setoctreedatas(octreedata)
                         // }
+                    }
+                } catch (error) {
+                    console.error('Error processing meshes:', error);
+                }
+            }
+        });
+
+        window.api.receive('gbl-file-mesh', async (fileInfoArray) => {
+            if (fileInfoArray && fileInfoArray.length > 0) {
+                console.log('Selected files:', fileInfoArray);
+                try {
+                    const { individualResults, cumulativeBoundingBox } =
+                        await calculateBoundingBoxes(fileInfoArray, canvasRef.current);
+                    console.log(individualResults);
+                    console.log(cumulativeBoundingBox);
+                    // Convert bounding box vectors to BABYLON.Vector3 objects
+                    const convertedBoundingBox = {
+                        min: new BABYLON.Vector3(
+                            cumulativeBoundingBox.min.x,
+                            cumulativeBoundingBox.min.y,
+                            cumulativeBoundingBox.min.z
+                        ),
+                        max: new BABYLON.Vector3(
+                            cumulativeBoundingBox.max.x,
+                            cumulativeBoundingBox.max.y,
+                            cumulativeBoundingBox.max.z
+                        )
+                    };
+
+                    setBoundingBoxes(individualResults);
+                    setCumulativeBoundingBox(convertedBoundingBox);
+                    console.log("conversion end");
+
+                    if (scene && convertedBoundingBox) {
+                        // let allglbMeshes = []; // To store all meshes from all files
+
+                        // Loop through individualResults and load each file
+                        for (const { filePath } of individualResults) {
+                            console.log(`Loading file: ${filePath}`);
+                            // const result = await BABYLON.SceneLoader.ImportMeshAsync("", "", filePath, scene, (evt) => {
+                            //     // This callback runs while loading
+                            //     if (evt.meshes) {
+                            //         evt.meshes.forEach(mesh => {
+                            //             mesh.isVisible = false;
+                            //             mesh.setEnabled(false);
+                            //         });
+                            //     }
+                            // });
+                            const result = await BABYLON.SceneLoader.ImportMeshAsync("", "", filePath, scene);
+
+                            // Option 2: Set meshes invisible after loading
+                            loadedMeshes = result.meshes.filter(mesh =>
+                                mesh.name !== "__root__" &&
+                                mesh.geometry
+                            );
+
+                            // // Clean up animations and materials
+                            // scene.animationGroups.forEach(group => group.dispose());
+                            // loadedMeshes.forEach(mesh => {
+                            //     // Set mesh invisible
+                            //     mesh.isVisible = false;
+                            //     mesh.setEnabled(false);
+
+                            //     if (mesh.material) {
+                            //         mesh.material.dispose();
+                            //         const simpleMaterial = new BABYLON.StandardMaterial("simpleMat", scene);
+                            //         simpleMaterial.diffuseColor = new BABYLON.Color3(0.7, 0.7, 0.7);
+                            //         simpleMaterial.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1);
+                            //         mesh.material = simpleMaterial;
+                            //     }
+                            // });
+
+                            // // Add the loaded meshes to the main array
+                            // allLoadedMeshes.push(...loadedMeshes);
+                           
+                            Fullmeshes.push(...loadedMeshes);
+                            // // Create simplified versions of each mesh
+                            // for (const mesh of loadedMeshes) {
+                            //     try {
+                            //         // Create LOD versions with different angle thresholds
+                            //         const lod1 = simplifyMesh(mesh, 20);
+                            //         const lod2 = simplifyMesh(mesh, 10);
+                            //         const lod3 = simplifyMesh(mesh, 5);
+
+                            //         if (lod1) {
+                            //             lod1.name = `${mesh.name}_lpoly_angle20`;
+                            //             lod1.isVisible = false;
+                            //             lod1.setEnabled(false);
+                            //             allLoadedMeshes.push(lod1);
+                            //         }
+
+                            //         if (lod2) {
+                            //             lod2.name = `${mesh.name}_mpoly_angle10`;
+                            //             lod2.isVisible = false;
+                            //             lod2.setEnabled(false);
+                            //             allLoadedMeshes.push(lod2);
+                            //         }
+
+                            //         if (lod3) {
+                            //             lod3.name = `${mesh.name}_hpoly_angle5`;
+                            //             lod3.isVisible = false;
+                            //             lod3.setEnabled(false);
+                            //             allLoadedMeshes.push(lod3);
+                            //         }
+
+                            //         // // Add original mesh to allLoadedMeshes as well
+                            //         // allLoadedMeshes.push(mesh);
+
+                            //     } catch (error) {
+                            //         console.error(`Error simplifying mesh ${mesh.name}:`, error);
+                            //     }
+                            // }
+                            // console.log(`all meshes to load : ${allLoadedMeshes}`);
+
+                        }
+                        
+
+                        // Create octree structure
+                        if (Fullmeshes.length > 0) {
+                           
+                            scene.meshes
+                                .filter(mesh => mesh.name.startsWith("octreeVisBox_"))
+                                .forEach(mesh => mesh.dispose());
+                            console.log("Creating octree structure");
+                            const rootBlock = createOctreeBlock(
+                                scene,
+                                convertedBoundingBox.min,
+                                convertedBoundingBox.max,
+                                Fullmeshes,
+                                0,
+                                null
+                            );
+                            console.log('Octree created:', rootBlock);
+
+                            // Position camera after octree creation
+                            positionCameraForBoundingBox(
+                                convertedBoundingBox.min,
+                                convertedBoundingBox.max
+                            );
+
+                            //         // Process LOD merging
+                            //         await processLODMerging();
+                            // await mergeMeshesByAngle();
+                            // // Update UI and visualizations
+                            // updateLODVisibility();
+                            //         const mergemeshdata = collectMergedMeshInfo()
+                            //         console.log(mergemeshdata);
+                            //         setmergemeshdatas(mergemeshdata.meshes)
+                            // const orimeshdata = await collectOriginalMeshInfo()
+                            // console.log(orimeshdata);
+                            // setorimeshdatas(orimeshdata.meshes)
+                            // const octreedata = await collectOctreeInfo(convertedBoundingBox)
+                            // console.log(octreedata);
+                            // setoctreedatas(octreedata)
+                        }
                     }
                 } catch (error) {
                     console.error('Error processing meshes:', error);
@@ -4068,6 +4502,24 @@ function Fbxload() {
                 className="mb-4 mr-4 p-2 bg-blue-500 text-white rounded hover:bg-blue-600"
             >
                 Select glb File
+            </button>
+
+            <button
+                onClick={handlemeshfile}
+                className="mb-4 mr-4 p-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            >
+                Select glb mesh File
+            </button>
+
+            <button
+                onClick={handleDownload}
+                disabled={buttonState.disabled}
+                className={`mb-4 mr-4 p-2 ${buttonState.disabled
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-blue-500 hover:bg-blue-600'
+                    } text-white rounded`}
+            >
+                {buttonState.text}
             </button>
 
             {/* <input
