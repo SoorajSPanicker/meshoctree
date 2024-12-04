@@ -829,6 +829,33 @@ const Loadindexdb = () => {
                 <p>{status}</p>
             </div>
             <canvas ref={canvasRef} style={{ width: '100%', height: '70vh' }} />
+            {/* <button
+                onClick={() => setupCamera('orbit')}
+                style={{
+                    marginRight: '10px',
+                    backgroundColor: cameraMode === 'orbit' ? '#4CAF50' : '#ddd',
+                    padding: '8px 16px',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    color: 'white'
+                }}
+            >
+                Orbit Camera
+            </button>
+            <button
+                onClick={() => setupCamera('fly')}
+                style={{
+                    backgroundColor: cameraMode === 'fly' ? '#2196F3' : '#ddd',
+                    padding: '8px 16px',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    color: 'white'
+                }}
+            >
+                Fly Camera
+            </button> */}
             <div id='rightopt' style={{ right: '0px' }} >
                 <i class="fa-solid fa-circle-info  button " title='Tag Info'  ></i>
                 <i class="fa fa-search-plus button" title='Zoomin' ></i>

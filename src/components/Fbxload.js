@@ -1775,6 +1775,10 @@ function Fbxload() {
         window.api.send('open-file-dialog');
     };
 
+    const handleglbSelect = () => {
+        window.api.send('open-glbfile-dialog');
+    };
+
     const createWireframeBox = (scene, minimum, maximum, depth = 0) => {
         if (!scene) return null;
 
@@ -3657,6 +3661,18 @@ function Fbxload() {
 
         return octreeInfo;
     };
+
+    const onFileChange = (event) => {
+        console.log(event);
+        console.log(event.target.files);
+        const files = Array.from(event.target.files);
+        console.log(files);
+        files.forEach(file => {
+            console.log(file.name);
+        })
+
+    };
+
     useEffect(() => {
 
         if (canvasRef.current && !sceneRef.current) {
@@ -3729,6 +3745,159 @@ function Fbxload() {
             }
         });
 
+        window.api.receive('gbl-file-value', async (fileInfoArray) => {
+            if (fileInfoArray && fileInfoArray.length > 0) {
+                console.log('Selected files:', fileInfoArray);
+                // window.api.send('fbx-gltf-converter', fileInfoArray);
+                try {
+                    const { individualResults, cumulativeBoundingBox } =
+                        await calculateBoundingBoxes(fileInfoArray, canvasRef.current);
+                    console.log(individualResults);
+                    console.log(cumulativeBoundingBox);
+                    // Convert bounding box vectors to BABYLON.Vector3 objects
+                    const convertedBoundingBox = {
+                        min: new BABYLON.Vector3(
+                            cumulativeBoundingBox.min.x,
+                            cumulativeBoundingBox.min.y,
+                            cumulativeBoundingBox.min.z
+                        ),
+                        max: new BABYLON.Vector3(
+                            cumulativeBoundingBox.max.x,
+                            cumulativeBoundingBox.max.y,
+                            cumulativeBoundingBox.max.z
+                        )
+                    };
+
+                    setBoundingBoxes(individualResults);
+                    setCumulativeBoundingBox(convertedBoundingBox);
+                    console.log("conversion end");
+
+                    if (scene && convertedBoundingBox) {
+                        // let allLoadedMeshes = []; // To store all meshes from all files
+
+                        // Loop through individualResults and load each file
+                        for (const { filePath } of individualResults) {
+                            console.log(`Loading file: ${filePath}`);
+                            // const result = await BABYLON.SceneLoader.ImportMeshAsync("", "", filePath, scene, (evt) => {
+                            //     // This callback runs while loading
+                            //     if (evt.meshes) {
+                            //         evt.meshes.forEach(mesh => {
+                            //             mesh.isVisible = false;
+                            //             mesh.setEnabled(false);
+                            //         });
+                            //     }
+                            // });
+                            const result = await BABYLON.SceneLoader.ImportMeshAsync("", "", filePath, scene);
+
+                            // Option 2: Set meshes invisible after loading
+                            loadedMeshes = result.meshes.filter(mesh =>
+                                mesh.name !== "__root__" &&
+                                mesh.geometry
+                            );
+
+                            // Clean up animations and materials
+                            scene.animationGroups.forEach(group => group.dispose());
+                            loadedMeshes.forEach(mesh => {
+                                // Set mesh invisible
+                                mesh.isVisible = false;
+                                mesh.setEnabled(false);
+
+                                if (mesh.material) {
+                                    mesh.material.dispose();
+                                    const simpleMaterial = new BABYLON.StandardMaterial("simpleMat", scene);
+                                    simpleMaterial.diffuseColor = new BABYLON.Color3(0.7, 0.7, 0.7);
+                                    simpleMaterial.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1);
+                                    mesh.material = simpleMaterial;
+                                }
+                            });
+
+                            // // Add the loaded meshes to the main array
+                            // allLoadedMeshes.push(...loadedMeshes);
+                            Fullmeshes.push(...loadedMeshes);
+                            // Create simplified versions of each mesh
+                            for (const mesh of loadedMeshes) {
+                                try {
+                                    // Create LOD versions with different angle thresholds
+                                    const lod1 = simplifyMesh(mesh, 20);
+                                    const lod2 = simplifyMesh(mesh, 10);
+                                    const lod3 = simplifyMesh(mesh, 5);
+
+                                    if (lod1) {
+                                        lod1.name = `${mesh.name}_lpoly_angle20`;
+                                        lod1.isVisible = false;
+                                        lod1.setEnabled(false);
+                                        allLoadedMeshes.push(lod1);
+                                    }
+
+                                    if (lod2) {
+                                        lod2.name = `${mesh.name}_mpoly_angle10`;
+                                        lod2.isVisible = false;
+                                        lod2.setEnabled(false);
+                                        allLoadedMeshes.push(lod2);
+                                    }
+
+                                    if (lod3) {
+                                        lod3.name = `${mesh.name}_hpoly_angle5`;
+                                        lod3.isVisible = false;
+                                        lod3.setEnabled(false);
+                                        allLoadedMeshes.push(lod3);
+                                    }
+
+                                    // // Add original mesh to allLoadedMeshes as well
+                                    // allLoadedMeshes.push(mesh);
+
+                                } catch (error) {
+                                    console.error(`Error simplifying mesh ${mesh.name}:`, error);
+                                }
+                            }
+                            console.log(`all meshes to load : ${allLoadedMeshes}`);
+
+                        }
+
+                        // // Create octree structure
+                        // if (allLoadedMeshes.length > 0) {
+                        //     scene.meshes
+                        //         .filter(mesh => mesh.name.startsWith("octreeVisBox_"))
+                        //         .forEach(mesh => mesh.dispose());
+                        //     console.log("Creating octree structure");
+                        //     const rootBlock = createOctreeBlock(
+                        //         scene,
+                        //         convertedBoundingBox.min,
+                        //         convertedBoundingBox.max,
+                        //         allLoadedMeshes,
+                        //         0,
+                        //         null
+                        //     );
+                        //     console.log('Octree created:', rootBlock);
+
+                        //     // Position camera after octree creation
+                        //     positionCameraForBoundingBox(
+                        //         convertedBoundingBox.min,
+                        //         convertedBoundingBox.max
+                        //     );
+
+                        //     //         // Process LOD merging
+                        //     //         await processLODMerging();
+                        //     // await mergeMeshesByAngle();
+                        //     // // Update UI and visualizations
+                        //     // updateLODVisibility();
+                        //     //         const mergemeshdata = collectMergedMeshInfo()
+                        //     //         console.log(mergemeshdata);
+                        //     //         setmergemeshdatas(mergemeshdata.meshes)
+                        //     // const orimeshdata = await collectOriginalMeshInfo()
+                        //     // console.log(orimeshdata);
+                        //     // setorimeshdatas(orimeshdata.meshes)
+                        //     // const octreedata = await collectOctreeInfo(convertedBoundingBox)
+                        //     // console.log(octreedata);
+                        //     // setoctreedatas(octreedata)
+                        // }
+                    }
+                } catch (error) {
+                    console.error('Error processing meshes:', error);
+                }
+            }
+        });
+
         window.api.receive('fbx-conversion-success', async (results) => {
             try {
                 const { individualResults, cumulativeBoundingBox } =
@@ -3751,127 +3920,128 @@ function Fbxload() {
 
                 setBoundingBoxes(individualResults);
                 setCumulativeBoundingBox(convertedBoundingBox);
+                console.log("conversion end");
 
-                if (scene && convertedBoundingBox) {
-                    // let allLoadedMeshes = []; // To store all meshes from all files
+                // if (scene && convertedBoundingBox) {
+                //     // let allLoadedMeshes = []; // To store all meshes from all files
 
-                    // Loop through individualResults and load each file
-                    for (const { filePath } of individualResults) {
-                        console.log(`Loading file: ${filePath}`);
-                        // const result = await BABYLON.SceneLoader.ImportMeshAsync("", "", filePath, scene, (evt) => {
-                        //     // This callback runs while loading
-                        //     if (evt.meshes) {
-                        //         evt.meshes.forEach(mesh => {
-                        //             mesh.isVisible = false;
-                        //             mesh.setEnabled(false);
-                        //         });
-                        //     }
-                        // });
-                        const result = await BABYLON.SceneLoader.ImportMeshAsync("", "", filePath, scene);
+                //     // Loop through individualResults and load each file
+                //     for (const { filePath } of individualResults) {
+                //         console.log(`Loading file: ${filePath}`);
+                //         // const result = await BABYLON.SceneLoader.ImportMeshAsync("", "", filePath, scene, (evt) => {
+                //         //     // This callback runs while loading
+                //         //     if (evt.meshes) {
+                //         //         evt.meshes.forEach(mesh => {
+                //         //             mesh.isVisible = false;
+                //         //             mesh.setEnabled(false);
+                //         //         });
+                //         //     }
+                //         // });
+                //         const result = await BABYLON.SceneLoader.ImportMeshAsync("", "", filePath, scene);
 
-                        // Option 2: Set meshes invisible after loading
-                        loadedMeshes = result.meshes.filter(mesh =>
-                            mesh.name !== "__root__" &&
-                            mesh.geometry
-                        );
+                //         // Option 2: Set meshes invisible after loading
+                //         loadedMeshes = result.meshes.filter(mesh =>
+                //             mesh.name !== "__root__" &&
+                //             mesh.geometry
+                //         );
 
-                        // Clean up animations and materials
-                        scene.animationGroups.forEach(group => group.dispose());
-                        loadedMeshes.forEach(mesh => {
-                            // Set mesh invisible
-                            mesh.isVisible = false;
-                            mesh.setEnabled(false);
+                //         // Clean up animations and materials
+                //         scene.animationGroups.forEach(group => group.dispose());
+                //         loadedMeshes.forEach(mesh => {
+                //             // Set mesh invisible
+                //             mesh.isVisible = false;
+                //             mesh.setEnabled(false);
 
-                            if (mesh.material) {
-                                mesh.material.dispose();
-                                const simpleMaterial = new BABYLON.StandardMaterial("simpleMat", scene);
-                                simpleMaterial.diffuseColor = new BABYLON.Color3(0.7, 0.7, 0.7);
-                                simpleMaterial.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1);
-                                mesh.material = simpleMaterial;
-                            }
-                        });
+                //             if (mesh.material) {
+                //                 mesh.material.dispose();
+                //                 const simpleMaterial = new BABYLON.StandardMaterial("simpleMat", scene);
+                //                 simpleMaterial.diffuseColor = new BABYLON.Color3(0.7, 0.7, 0.7);
+                //                 simpleMaterial.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1);
+                //                 mesh.material = simpleMaterial;
+                //             }
+                //         });
 
-                        // // Add the loaded meshes to the main array
-                        // allLoadedMeshes.push(...loadedMeshes);
-                        Fullmeshes.push(...loadedMeshes);
-                        // Create simplified versions of each mesh
-                        for (const mesh of loadedMeshes) {
-                            try {
-                                // Create LOD versions with different angle thresholds
-                                const lod1 = simplifyMesh(mesh, 20);
-                                const lod2 = simplifyMesh(mesh, 10);
-                                const lod3 = simplifyMesh(mesh, 5);
+                //         // // Add the loaded meshes to the main array
+                //         // allLoadedMeshes.push(...loadedMeshes);
+                //         Fullmeshes.push(...loadedMeshes);
+                //         // Create simplified versions of each mesh
+                //         for (const mesh of loadedMeshes) {
+                //             try {
+                //                 // Create LOD versions with different angle thresholds
+                //                 const lod1 = simplifyMesh(mesh, 20);
+                //                 const lod2 = simplifyMesh(mesh, 10);
+                //                 const lod3 = simplifyMesh(mesh, 5);
 
-                                if (lod1) {
-                                    lod1.name = `${mesh.name}_lpoly_angle20`;
-                                    lod1.isVisible = false;
-                                    lod1.setEnabled(false);
-                                    allLoadedMeshes.push(lod1);
-                                }
+                //                 if (lod1) {
+                //                     lod1.name = `${mesh.name}_lpoly_angle20`;
+                //                     lod1.isVisible = false;
+                //                     lod1.setEnabled(false);
+                //                     allLoadedMeshes.push(lod1);
+                //                 }
 
-                                if (lod2) {
-                                    lod2.name = `${mesh.name}_mpoly_angle10`;
-                                    lod2.isVisible = false;
-                                    lod2.setEnabled(false);
-                                    allLoadedMeshes.push(lod2);
-                                }
+                //                 if (lod2) {
+                //                     lod2.name = `${mesh.name}_mpoly_angle10`;
+                //                     lod2.isVisible = false;
+                //                     lod2.setEnabled(false);
+                //                     allLoadedMeshes.push(lod2);
+                //                 }
 
-                                if (lod3) {
-                                    lod3.name = `${mesh.name}_hpoly_angle5`;
-                                    lod3.isVisible = false;
-                                    lod3.setEnabled(false);
-                                    allLoadedMeshes.push(lod3);
-                                }
+                //                 if (lod3) {
+                //                     lod3.name = `${mesh.name}_hpoly_angle5`;
+                //                     lod3.isVisible = false;
+                //                     lod3.setEnabled(false);
+                //                     allLoadedMeshes.push(lod3);
+                //                 }
 
-                                // // Add original mesh to allLoadedMeshes as well
-                                // allLoadedMeshes.push(mesh);
+                //                 // // Add original mesh to allLoadedMeshes as well
+                //                 // allLoadedMeshes.push(mesh);
 
-                            } catch (error) {
-                                console.error(`Error simplifying mesh ${mesh.name}:`, error);
-                            }
-                        }
-                        console.log(`all meshes to load : ${allLoadedMeshes}`);
+                //             } catch (error) {
+                //                 console.error(`Error simplifying mesh ${mesh.name}:`, error);
+                //             }
+                //         }
+                //         console.log(`all meshes to load : ${allLoadedMeshes}`);
 
-                    }
+                //     }
 
-                    // Create octree structure
-                    if (allLoadedMeshes.length > 0) {
-                        scene.meshes
-                            .filter(mesh => mesh.name.startsWith("octreeVisBox_"))
-                            .forEach(mesh => mesh.dispose());
-                        console.log("Creating octree structure");
-                        const rootBlock = createOctreeBlock(
-                            scene,
-                            convertedBoundingBox.min,
-                            convertedBoundingBox.max,
-                            allLoadedMeshes,
-                            0,
-                            null
-                        );
-                        console.log('Octree created:', rootBlock);
+                //     // Create octree structure
+                //     if (allLoadedMeshes.length > 0) {
+                //         scene.meshes
+                //             .filter(mesh => mesh.name.startsWith("octreeVisBox_"))
+                //             .forEach(mesh => mesh.dispose());
+                //         console.log("Creating octree structure");
+                //         const rootBlock = createOctreeBlock(
+                //             scene,
+                //             convertedBoundingBox.min,
+                //             convertedBoundingBox.max,
+                //             allLoadedMeshes,
+                //             0,
+                //             null
+                //         );
+                //         console.log('Octree created:', rootBlock);
 
-                        // Position camera after octree creation
-                        positionCameraForBoundingBox(
-                            convertedBoundingBox.min,
-                            convertedBoundingBox.max
-                        );
+                //         // Position camera after octree creation
+                //         positionCameraForBoundingBox(
+                //             convertedBoundingBox.min,
+                //             convertedBoundingBox.max
+                //         );
 
-                        //         // Process LOD merging
-                        //         await processLODMerging();
-                        // await mergeMeshesByAngle();
-                        // // Update UI and visualizations
-                        // updateLODVisibility();
-                        //         const mergemeshdata = collectMergedMeshInfo()
-                        //         console.log(mergemeshdata);
-                        //         setmergemeshdatas(mergemeshdata.meshes)
-                        const orimeshdata = await collectOriginalMeshInfo()
-                        console.log(orimeshdata);
-                        setorimeshdatas(orimeshdata.meshes)
-                        const octreedata = await collectOctreeInfo(convertedBoundingBox)
-                        console.log(octreedata);
-                        setoctreedatas(octreedata)
-                    }
-                }
+                //         //         // Process LOD merging
+                //         //         await processLODMerging();
+                //         // await mergeMeshesByAngle();
+                //         // // Update UI and visualizations
+                //         // updateLODVisibility();
+                //         //         const mergemeshdata = collectMergedMeshInfo()
+                //         //         console.log(mergemeshdata);
+                //         //         setmergemeshdatas(mergemeshdata.meshes)
+                //         // const orimeshdata = await collectOriginalMeshInfo()
+                //         // console.log(orimeshdata);
+                //         // setorimeshdatas(orimeshdata.meshes)
+                //         // const octreedata = await collectOctreeInfo(convertedBoundingBox)
+                //         // console.log(octreedata);
+                //         // setoctreedatas(octreedata)
+                //     }
+                // }
             } catch (error) {
                 console.error('Error processing meshes:', error);
             }
@@ -3892,6 +4062,22 @@ function Fbxload() {
             >
                 Select FBX File
             </button>
+
+            <button
+                onClick={handleglbSelect}
+                className="mb-4 mr-4 p-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            >
+                Select glb File
+            </button>
+
+            {/* <input
+                className="button btn"
+                type="file"
+                multiple
+                onChange={onFileChange}
+                accept=".glb"
+            /> */}
+
             {/* <Loadindexdb
                 scene={currentScene}
                 canvasRef={canvasRef}
@@ -3909,7 +4095,7 @@ function Fbxload() {
                 <i class="fa fa-search-plus button" title='Zoomin' ></i>
                 <i class="fa fa-search-plus button" title='Download' onClick={downloadmesh}></i>
             </div> */}
-            {octreedatas && orimeshdatas.length > 0 && (
+            {/* {octreedatas && orimeshdatas.length > 0 && (
                 <Octreestorage
                     convertedModels={[
                         ...orimeshdatas.map(data => ({
@@ -3919,7 +4105,7 @@ function Fbxload() {
                     ]}
                     octree={octreedatas}
                 />
-            )}
+            )} */}
         </div>
     );
 }

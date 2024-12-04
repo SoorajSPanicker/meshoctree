@@ -91,4 +91,29 @@ app.whenReady().then(() => {
             event.reply('gbl-file-content', null);
         }
     });
+
+    ipcMain.on('open-glbfile-dialog', async (event) => {
+        try {
+            const result = await dialog.showOpenDialog({
+                properties: ['openFile', 'multiSelections'],
+                filters: [{ name: 'Supported Files', extensions: ['html', 'htm', 'glb'] }]
+            });
+    
+            console.log(result);
+    
+            if (!result.canceled && result.filePaths.length > 0) {
+                const fileInfoArray = result.filePaths.map(fullPath => ({
+                    convertedFilePath: fullPath,
+                    convertedFileName: path.basename(fullPath)
+                }));
+    
+                event.reply('gbl-file-value', fileInfoArray);
+            } else {
+                event.reply('gbl-file-value', null);
+            }
+        } catch (err) {
+            console.error('Error in open-file-dialog:', err);
+            event.reply('gbl-file-value', null);
+        }
+    });
 })
