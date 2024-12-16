@@ -1352,29 +1352,59 @@ function Fbxload() {
                                 orimeshdata = await collectOriginalMeshInfo(newAllMeshes);
                                 console.log(orimeshdata);
                                 setorimeshdatas(orimeshdata.meshes)
+                                // for (const mesh of newAllMeshes) {
+                                //     try {
+                                //         const lod1 = await simplifyMesh(mesh, 3);
+                                //         console.log(lod1)
+                                //         lod1.isVisible = false;
+                                //         lod1.setEnabled(false);
+                                //         const lod2 = await simplifyMesh(lod1, 10);
+                                //         console.log(lod2)
+                                //         lod2.isVisible = false;
+                                //         lod2.setEnabled(false);
+                                //         const lod3 = await simplifyMesh(lod2, 20);
+                                //         console.log(lod3)
+
+                                //         let newMeshes = [];
+
+                                //         if (lod3) {
+                                //             lod3.name = `${mesh.name}_lpoly_angle20`;
+                                //             lod3.isVisible = false;
+                                //             lod3.setEnabled(false);
+                                //             newMeshes.push(lod3);
+                                //         }
+
+                                //         setalllpolymeshes(prevMeshes => [...prevMeshes, ...newMeshes]);
+
+                                //     } catch (error) {
+                                //         console.error(`Error simplifying mesh ${mesh.name}:`, error);
+                                //     }
+                                // }
                                 for (const mesh of newAllMeshes) {
                                     try {
+                                        // Create LOD1
                                         const lod1 = await simplifyMesh(mesh, 3);
-                                        console.log(lod1)
-                                        lod1.isVisible = false;
-                                        lod1.setEnabled(false);
+                                        if (!lod1) continue;
+
+                                        // Create LOD2
                                         const lod2 = await simplifyMesh(lod1, 10);
-                                        console.log(lod2)
-                                        lod2.isVisible = false;
-                                        lod2.setEnabled(false);
+                                        // Dispose LOD1 immediately since we don't need it anymore
+                                        lod1.dispose();
+                                        if (!lod2) continue;
+
+                                        // Create LOD3
                                         const lod3 = await simplifyMesh(lod2, 20);
-                                        console.log(lod3)
+                                        // Dispose LOD2 immediately
+                                        lod2.dispose();
+                                        if (!lod3) continue;
 
-                                        let newMeshes = [];
+                                        // Set final LOD3 properties
+                                        lod3.name = `${mesh.name}_lpoly_angle20`;
+                                        lod3.isVisible = false;
+                                        lod3.setEnabled(false);
 
-                                        if (lod3) {
-                                            lod3.name = `${mesh.name}_lpoly_angle20`;
-                                            lod3.isVisible = false;
-                                            lod3.setEnabled(false);
-                                            newMeshes.push(lod3);
-                                        }
-
-                                        setalllpolymeshes(prevMeshes => [...prevMeshes, ...newMeshes]);
+                                        // Add to all low poly meshes
+                                        setalllpolymeshes(prevMeshes => [...prevMeshes, lod3]);
 
                                     } catch (error) {
                                         console.error(`Error simplifying mesh ${mesh.name}:`, error);
