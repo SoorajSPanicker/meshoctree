@@ -50,15 +50,15 @@ const Loadindexdb = ({ engine, scene }) => {
         const centerWorld = boundingBox.centerWorld;
         const size = boundingBox.maximumWorld.subtract(boundingBox.minimumWorld);
 
-        const centerScreen = BABYLON.Vector3.Project(
-            centerWorld,
-            BABYLON.Matrix.Identity(),
-            scene.getTransformMatrix(),
-            camera.viewport.toGlobal(
-                engine.getRenderWidth(),
-                engine.getRenderHeight()
-            )
-        );
+        // const centerScreen = BABYLON.Vector3.Project(
+        //     centerWorld,
+        //     BABYLON.Matrix.Identity(),
+        //     scene.getTransformMatrix(),
+        //     camera.viewport.toGlobal(
+        //         engine.getRenderWidth(),
+        //         engine.getRenderHeight()
+        //     )
+        // );
 
         const dimensions = [size.x, size.y, size.z];
         const maxDimension = Math.max(...dimensions);
@@ -239,10 +239,10 @@ const Loadindexdb = ({ engine, scene }) => {
             const sortedCoverages = [...meshCoverages].sort((a, b) => b.coverage - a.coverage);
             console.log('Sorted Mesh Coverages (largest to smallest):', sortedCoverages);
 
-            // createdMeshes.forEach(mesh => {
-            //     const coverage = calculateScreenCoverage(mesh, scene.activeCamera, engine);
-            //     mesh.isVisible = coverage >= 0.1; // 1% screen coverage threshold
-            // });
+            createdMeshes.forEach(mesh => {
+                const coverage = calculateScreenCoverage(mesh, scene.activeCamera, engine);
+                mesh.isVisible = coverage <= 0.04194; // 1% screen coverage threshold
+            });
 
             setStatus(`Successfully loaded ${createdMeshCount} meshes`);
             scene.render();

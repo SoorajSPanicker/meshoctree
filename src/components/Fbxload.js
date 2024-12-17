@@ -1219,7 +1219,7 @@ function Fbxload() {
                         let orimeshdata = {}
                         let lpolymeshdata = {}
                         for (const batch of fileInfoArray) {
-                            for (const { convertedFilePath } of batch) {
+                            await Promise.all(batch.map(async ({ convertedFilePath }) => {
                                 console.log(convertedFilePath);
 
                                 const result = await BABYLON.SceneLoader.ImportMeshAsync("", "", convertedFilePath, scene);
@@ -1352,69 +1352,100 @@ function Fbxload() {
                                 orimeshdata = await collectOriginalMeshInfo(newAllMeshes);
                                 console.log(orimeshdata);
                                 setorimeshdatas(orimeshdata.meshes)
+                                // // for (const mesh of newAllMeshes) {
+                                // //     try {
+                                // //         const lod1 = await simplifyMesh(mesh, 3);
+                                // //         console.log(lod1)
+                                // //         lod1.isVisible = false;
+                                // //         lod1.setEnabled(false);
+                                // //         const lod2 = await simplifyMesh(lod1, 10);
+                                // //         console.log(lod2)
+                                // //         lod2.isVisible = false;
+                                // //         lod2.setEnabled(false);
+                                // //         const lod3 = await simplifyMesh(lod2, 20);
+                                // //         console.log(lod3)
+
+                                // //         let newMeshes = [];
+
+                                // //         if (lod3) {
+                                // //             lod3.name = `${mesh.name}_lpoly_angle20`;
+                                // //             lod3.isVisible = false;
+                                // //             lod3.setEnabled(false);
+                                // //             newMeshes.push(lod3);
+                                // //         }
+
+                                // //         setalllpolymeshes(prevMeshes => [...prevMeshes, ...newMeshes]);
+
+                                // //     } catch (error) {
+                                // //         console.error(`Error simplifying mesh ${mesh.name}:`, error);
+                                // //     }
+                                // // }
                                 // for (const mesh of newAllMeshes) {
                                 //     try {
+                                //         // Create LOD1
                                 //         const lod1 = await simplifyMesh(mesh, 3);
-                                //         console.log(lod1)
-                                //         lod1.isVisible = false;
-                                //         lod1.setEnabled(false);
+                                //         if (!lod1) continue;
+
+                                //         // Create LOD2
                                 //         const lod2 = await simplifyMesh(lod1, 10);
-                                //         console.log(lod2)
-                                //         lod2.isVisible = false;
-                                //         lod2.setEnabled(false);
+                                //         // Dispose LOD1 immediately since we don't need it anymore
+                                //         lod1.dispose();
+                                //         if (!lod2) continue;
+
+                                //         // Create LOD3
                                 //         const lod3 = await simplifyMesh(lod2, 20);
-                                //         console.log(lod3)
+                                //         // Dispose LOD2 immediately
+                                //         lod2.dispose();
+                                //         if (!lod3) continue;
 
-                                //         let newMeshes = [];
+                                //         // Set final LOD3 properties
+                                //         lod3.name = `${mesh.name}_lpoly_angle20`;
+                                //         lod3.isVisible = false;
+                                //         lod3.setEnabled(false);
 
-                                //         if (lod3) {
-                                //             lod3.name = `${mesh.name}_lpoly_angle20`;
-                                //             lod3.isVisible = false;
-                                //             lod3.setEnabled(false);
-                                //             newMeshes.push(lod3);
-                                //         }
-
-                                //         setalllpolymeshes(prevMeshes => [...prevMeshes, ...newMeshes]);
+                                //         // Add to all low poly meshes
+                                //         setalllpolymeshes(prevMeshes => [...prevMeshes, lod3]);
 
                                 //     } catch (error) {
                                 //         console.error(`Error simplifying mesh ${mesh.name}:`, error);
                                 //     }
                                 // }
-                                for (const mesh of newAllMeshes) {
+                                // console.log(`all meshes to load : ${alllpolyMeshes}`);
+                                // lpolymeshdata = await collectLpolyMeshInfo(newAllMeshes);
+                                // console.log(lpolymeshdata);
+                                // setlpolymeshdatas(lpolymeshdata.meshes)
+
+                                // Process low poly meshes
+                                const processedMeshes = await Promise.all(newAllMeshes.map(async (mesh) => {
                                     try {
-                                        // Create LOD1
                                         const lod1 = await simplifyMesh(mesh, 3);
-                                        if (!lod1) continue;
+                                        if (!lod1) return null;
 
-                                        // Create LOD2
                                         const lod2 = await simplifyMesh(lod1, 10);
-                                        // Dispose LOD1 immediately since we don't need it anymore
                                         lod1.dispose();
-                                        if (!lod2) continue;
+                                        if (!lod2) return null;
 
-                                        // Create LOD3
                                         const lod3 = await simplifyMesh(lod2, 20);
-                                        // Dispose LOD2 immediately
                                         lod2.dispose();
-                                        if (!lod3) continue;
+                                        if (!lod3) return null;
 
-                                        // Set final LOD3 properties
                                         lod3.name = `${mesh.name}_lpoly_angle20`;
                                         lod3.isVisible = false;
                                         lod3.setEnabled(false);
 
-                                        // Add to all low poly meshes
-                                        setalllpolymeshes(prevMeshes => [...prevMeshes, lod3]);
-
+                                        return lod3;
                                     } catch (error) {
                                         console.error(`Error simplifying mesh ${mesh.name}:`, error);
+                                        return null;
                                     }
-                                }
-                                console.log(`all meshes to load : ${alllpolyMeshes}`);
+                                }));
+
+                                const validMeshes = processedMeshes.filter(mesh => mesh !== null);
+                                setalllpolymeshes(prevMeshes => [...prevMeshes, ...validMeshes]);
+
                                 lpolymeshdata = await collectLpolyMeshInfo(newAllMeshes);
-                                console.log(lpolymeshdata);
-                                setlpolymeshdatas(lpolymeshdata.meshes)
-                            }
+                                setlpolymeshdatas(lpolymeshdata.meshes);
+                            }));
 
                             // // const rootBlock = createOctreeBlock(
                             // //     scene,
@@ -1429,14 +1460,7 @@ function Fbxload() {
                             console.log('First mesh transforms:', orimeshdata.meshes[0].transforms);
                             console.log('First mesh world matrix:', BABYLON.Matrix.FromArray(orimeshdata.meshes[0].transforms.worldMatrix));
 
-                            const rootBlockbound = createOctreeBlock(
-                                scene,
-                                convertedBoundingBox.min,
-                                convertedBoundingBox.max,
-                                orimeshdata.meshes,  // Pass mesh info array instead of actual meshes
-                                0,
-                                null
-                            );
+
                             // console.log('Created octree:', {
                             //     totalNodes: nodeCounter - 1,
                             //     nodesAtDepth,
@@ -1446,11 +1470,19 @@ function Fbxload() {
                             //     )
                             // });
                             // console.log(rootBlockbound);
-                            const octreedata = await collectOctreeInfo(rootBlockbound, convertedBoundingBox)
-                            console.log(octreedata);
-                            setoctreedatas(octreedata)
-                        }
 
+                        }
+                        const rootBlockbound = createOctreeBlock(
+                            scene,
+                            convertedBoundingBox.min,
+                            convertedBoundingBox.max,
+                            orimeshdata.meshes,  // Pass mesh info array instead of actual meshes
+                            0,
+                            null
+                        );
+                        const octreedata = await collectOctreeInfo(rootBlockbound, convertedBoundingBox)
+                        console.log(octreedata);
+                        setoctreedatas(octreedata)
                     }
                 } catch (error) {
                     console.error('Error processing meshes:', error);
