@@ -3,12 +3,46 @@ import { openDB } from 'idb';
 import * as BABYLON from '@babylonjs/core';
 
 const Loadindexdb = ({ engine, scene }) => {
+    // const [status, setStatus] = useState('');
+    // const [isLoading, setIsLoading] = useState(false);
+
+    // const DB_NAME = 'ModelStorage';
+    // const DB_VERSION = 2;
+    // const TARGET_DEPTH = 4;
+
     const [status, setStatus] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
     const DB_NAME = 'ModelStorage';
-    const DB_VERSION = 2;
+    const DB_VERSION = 3; // Increased version for new store
     const TARGET_DEPTH = 4;
+
+    const initDB = async () => {
+        try {
+            const db = await openDB(DB_NAME, DB_VERSION, {
+                upgrade(db, oldVersion, newVersion) {
+                    // Keep existing stores
+                    if (!db.objectStoreNames.contains('models')) {
+                        db.createObjectStore('models', { keyPath: 'fileName' });
+                    }
+                    if (!db.objectStoreNames.contains('lmodels')) {
+                        db.createObjectStore('lmodels', { keyPath: 'fileName' });
+                    }
+                    if (!db.objectStoreNames.contains('octrees')) {
+                        db.createObjectStore('octrees', { keyPath: 'name' });
+                    }
+                    // Add new store for merged meshes
+                    if (!db.objectStoreNames.contains('mergedlpoly')) {
+                        db.createObjectStore('mergedlpoly', { keyPath: 'name' });
+                    }
+                }
+            });
+            return db;
+        } catch (error) {
+            console.error('Error initializing database:', error);
+            throw error;
+        }
+    };
 
     const createWireframeBox = (bounds) => {
         if (!scene) return null;
@@ -96,6 +130,376 @@ const Loadindexdb = ({ engine, scene }) => {
         camera.maxZ = maxDimension * 1000;
     };
 
+    // const loadModelsFromOctree = async () => {
+    //     if (!scene || !engine) {
+    //         setStatus('Error: Scene or Engine not initialized');
+    //         return;
+    //     }
+
+    //     setIsLoading(true);
+    //     setStatus('Starting to load models...');
+
+    //     try {
+    //         const db = await openDB(DB_NAME, DB_VERSION);
+
+    //         // Create shared material
+    //         const sharedMaterial = new BABYLON.StandardMaterial("sharedMaterial", scene);
+    //         sharedMaterial.diffuseColor = new BABYLON.Color3(0.7, 0.7, 0.7);
+    //         sharedMaterial.specularColor = new BABYLON.Color3(0.2, 0.2, 0.2);
+    //         sharedMaterial.ambientColor = new BABYLON.Color3(0.1, 0.1, 0.1);
+    //         sharedMaterial.backFaceCulling = false;
+
+    //         // Get octree data
+    //         const octreeStore = db.transaction('octrees', 'readonly').objectStore('octrees');
+    //         const octreeData = await octreeStore.get('mainOctree');
+
+    //         if (!octreeData || !octreeData.data) {
+    //             throw new Error('No octree data found');
+    //         }
+
+    //         // Create root wireframe box
+    //         createWireframeBox(octreeData.data.bounds);
+
+    //         // Get depth 4 nodes
+    //         const depth4Nodes = [];
+    //         const getDepth4Nodes = (block, depth = 0) => {
+    //             if (!block) return;
+    //             if (depth === TARGET_DEPTH && block.meshInfos && block.meshInfos.length > 0) {
+    //                 depth4Nodes.push({
+    //                     nodeNumber: block.properties.nodeNumber,
+    //                     meshIds: block.meshInfos.map(info => info.id),
+    //                     bounds: block.bounds
+    //                 });
+    //             }
+    //             if (block.relationships && block.relationships.childBlocks) {
+    //                 block.relationships.childBlocks.forEach(child =>
+    //                     getDepth4Nodes(child, depth + 1)
+    //                 );
+    //             }
+    //         };
+
+    //         getDepth4Nodes(octreeData.data.blockHierarchy);
+    //         setStatus(`Found ${depth4Nodes.length} nodes at depth 4`);
+
+    //         // Get low-poly models
+    //         const lmodelsStore = db.transaction('lmodels', 'readonly').objectStore('lmodels');
+    //         const lowPolyModels = await lmodelsStore.getAll();
+
+    //         const createdMeshes = [];
+    //         let createdMeshCount = 0;
+
+    //         // Create meshes
+    //         for (const node of depth4Nodes) {
+    //             for (const meshId of node.meshIds) {
+    //                 const lowPolyMatch = lowPolyModels.find(lmodel =>
+    //                     lmodel.fileName.includes(meshId) ||
+    //                     lmodel.data.metadata.id.includes(meshId)
+    //                 );
+
+    //                 if (lowPolyMatch) {
+    //                     try {
+    //                         const mesh = new BABYLON.Mesh(lowPolyMatch.data.name, scene);
+
+    //                         // Apply vertex data
+    //                         const vertexData = new BABYLON.VertexData();
+    //                         vertexData.positions = new Float32Array(lowPolyMatch.data.vertexData.positions);
+    //                         vertexData.indices = new Uint32Array(lowPolyMatch.data.vertexData.indices);
+
+    //                         if (lowPolyMatch.data.vertexData.normals) {
+    //                             vertexData.normals = new Float32Array(lowPolyMatch.data.vertexData.normals);
+    //                         }
+
+    //                         vertexData.applyToMesh(mesh);
+
+    //                         // Apply transforms
+    //                         if (lowPolyMatch.data.transforms.worldMatrix) {
+    //                             const matrix = BABYLON.Matrix.FromArray(lowPolyMatch.data.transforms.worldMatrix);
+    //                             mesh.setPreTransformMatrix(matrix);
+    //                         } else {
+    //                             mesh.position = new BABYLON.Vector3(
+    //                                 lowPolyMatch.data.transforms.position.x,
+    //                                 lowPolyMatch.data.transforms.position.y,
+    //                                 lowPolyMatch.data.transforms.position.z
+    //                             );
+    //                             mesh.rotation = new BABYLON.Vector3(
+    //                                 lowPolyMatch.data.transforms.rotation.x,
+    //                                 lowPolyMatch.data.transforms.rotation.y,
+    //                                 lowPolyMatch.data.transforms.rotation.z
+    //                             );
+    //                             mesh.scaling = new BABYLON.Vector3(
+    //                                 lowPolyMatch.data.transforms.scaling.x,
+    //                                 lowPolyMatch.data.transforms.scaling.y,
+    //                                 lowPolyMatch.data.transforms.scaling.z
+    //                             );
+    //                         }
+
+    //                         // Apply shared material
+    //                         mesh.material = sharedMaterial;
+
+    //                         mesh.isVisible = true;
+    //                         mesh.isPickable = false;
+
+    //                         // Store metadata
+    //                         mesh.metadata = {
+    //                             originalId: meshId,
+    //                             nodeNumber: node.nodeNumber
+    //                         };
+
+    //                         createdMeshes.push(mesh);
+    //                         createdMeshCount++;
+    //                         setStatus(`Created ${createdMeshCount} meshes...`);
+    //                     } catch (error) {
+    //                         console.error(`Error creating mesh for ${meshId}:`, error);
+    //                     }
+    //                 }
+    //             }
+    //         }
+
+    //         // Position camera
+    //         if (scene.activeCamera && octreeData.data.bounds) {
+    //             fitCameraToOctree(scene.activeCamera, octreeData.data.bounds.max, octreeData.data.bounds.min);
+    //         }
+
+    //         // Calculate and log screen coverages
+    //         const meshCoverages = createdMeshes.map(mesh => ({
+    //             meshName: mesh.name,
+    //             nodeNumber: mesh.metadata.nodeNumber,
+    //             coverage: calculateScreenCoverage(mesh, scene.activeCamera, engine),
+    //             vertexCount: mesh.getTotalVertices(),
+    //             faceCount: mesh.getTotalIndices() / 3
+    //         }));
+
+    //         console.log('Mesh Screen Coverages:', meshCoverages);
+    //         const sortedCoverages = [...meshCoverages].sort((a, b) => b.coverage - a.coverage);
+    //         console.log('Sorted Mesh Coverages (largest to smallest):', sortedCoverages);
+
+    //         createdMeshes.forEach(mesh => {
+    //             const coverage = calculateScreenCoverage(mesh, scene.activeCamera, engine);
+    //             mesh.isVisible = coverage <= 0.04194; // 1% screen coverage threshold
+    //         });
+
+    //         setStatus(`Successfully loaded ${createdMeshCount} meshes`);
+    //         scene.render();
+
+    //     } catch (error) {
+    //         console.error('Error loading models:', error);
+    //         setStatus(`Error: ${error.message}`);
+    //     } finally {
+    //         setIsLoading(false);
+    //     }
+    // };
+
+
+    // const loadModelsFromOctree = async () => {
+    //     if (!scene || !engine) {
+    //         setStatus('Error: Scene or Engine not initialized');
+    //         return;
+    //     }
+
+    //     setIsLoading(true);
+    //     setStatus('Starting to load models...');
+
+    //     try {
+    //         const db = await openDB(DB_NAME, DB_VERSION);
+
+    //         // Create shared material
+    //         const sharedMaterial = new BABYLON.StandardMaterial("sharedMaterial", scene);
+    //         sharedMaterial.diffuseColor = new BABYLON.Color3(0.7, 0.7, 0.7);
+    //         sharedMaterial.specularColor = new BABYLON.Color3(0.2, 0.2, 0.2);
+    //         sharedMaterial.ambientColor = new BABYLON.Color3(0.1, 0.1, 0.1);
+    //         sharedMaterial.backFaceCulling = false;
+
+    //         const octreeStore = db.transaction('octrees', 'readonly').objectStore('octrees');
+    //         const octreeData = await octreeStore.get('mainOctree');
+
+    //         if (!octreeData || !octreeData.data) {
+    //             throw new Error('No octree data found');
+    //         }
+
+    //         createWireframeBox(octreeData.data.bounds);
+
+    //         const depth4Nodes = [];
+    //         const getDepth4Nodes = (block, depth = 0) => {
+    //             if (!block) return;
+    //             if (depth === TARGET_DEPTH && block.meshInfos && block.meshInfos.length > 0) {
+    //                 depth4Nodes.push({
+    //                     nodeNumber: block.properties.nodeNumber,
+    //                     meshIds: block.meshInfos.map(info => info.id),
+    //                     bounds: block.bounds
+    //                 });
+    //             }
+    //             if (block.relationships && block.relationships.childBlocks) {
+    //                 block.relationships.childBlocks.forEach(child =>
+    //                     getDepth4Nodes(child, depth + 1)
+    //                 );
+    //             }
+    //         };
+
+    //         getDepth4Nodes(octreeData.data.blockHierarchy);
+    //         setStatus(`Found ${depth4Nodes.length} nodes at depth 4`);
+
+    //         const lmodelsStore = db.transaction('lmodels', 'readonly').objectStore('lmodels');
+    //         const lowPolyModels = await lmodelsStore.getAll();
+
+    //         // Process each depth 4 node separately
+    //         for (const node of depth4Nodes) {
+    //             const meshesToMerge = [];
+
+    //             // Find qualifying meshes for this node
+    //             for (const meshId of node.meshIds) {
+    //                 const lowPolyMatch = lowPolyModels.find(lmodel =>
+    //                     lmodel.fileName.includes(meshId) ||
+    //                     lmodel.data.metadata.id.includes(meshId)
+    //                 );
+
+    //                 if (lowPolyMatch && lowPolyMatch.data.metadata.screenCoverage > 0.1) {
+    //                     try {
+    //                         // Create temporary mesh
+    //                         const tempMesh = new BABYLON.Mesh("temp", scene);
+    //                         const vertexData = new BABYLON.VertexData();
+    //                         vertexData.positions = new Float32Array(lowPolyMatch.data.vertexData.positions);
+    //                         vertexData.indices = new Uint32Array(lowPolyMatch.data.vertexData.indices);
+    //                         if (lowPolyMatch.data.vertexData.normals) {
+    //                             vertexData.normals = new Float32Array(lowPolyMatch.data.vertexData.normals);
+    //                         }
+    //                         vertexData.applyToMesh(tempMesh);
+
+    //                         // Apply transforms
+    //                         if (lowPolyMatch.data.transforms.worldMatrix) {
+    //                             const matrix = BABYLON.Matrix.FromArray(lowPolyMatch.data.transforms.worldMatrix);
+    //                             tempMesh.setPreTransformMatrix(matrix);
+    //                         } else {
+    //                             tempMesh.position = new BABYLON.Vector3(
+    //                                 lowPolyMatch.data.transforms.position.x,
+    //                                 lowPolyMatch.data.transforms.position.y,
+    //                                 lowPolyMatch.data.transforms.position.z
+    //                             );
+    //                             tempMesh.rotation = new BABYLON.Vector3(
+    //                                 lowPolyMatch.data.transforms.rotation.x,
+    //                                 lowPolyMatch.data.transforms.rotation.y,
+    //                                 lowPolyMatch.data.transforms.rotation.z
+    //                             );
+    //                             tempMesh.scaling = new BABYLON.Vector3(
+    //                                 lowPolyMatch.data.transforms.scaling.x,
+    //                                 lowPolyMatch.data.transforms.scaling.y,
+    //                                 lowPolyMatch.data.transforms.scaling.z
+    //                             );
+    //                         }
+
+    //                         meshesToMerge.push(tempMesh);
+    //                     } catch (error) {
+    //                         console.error(`Error creating temporary mesh for ${meshId}:`, error);
+    //                     }
+    //                 }
+    //             }
+
+    //             // If we have meshes to merge for this node
+    //             if (meshesToMerge.length > 0) {
+    //                 try {
+    //                     // Merge meshes
+    //                     const mergedMesh = BABYLON.Mesh.MergeMeshes(
+    //                         meshesToMerge,
+    //                         true,
+    //                         true,
+    //                         undefined,
+    //                         false,
+    //                         true
+    //                     );
+
+    //                     if (mergedMesh) {
+    //                         // Name the merged mesh based on node number
+    //                         mergedMesh.name = `lpoly_node_${node.nodeNumber}`;
+
+    //                         // Apply material and settings
+    //                         mergedMesh.material = sharedMaterial;
+    //                         mergedMesh.isPickable = false;
+    //                         mergedMesh.isVisible = true;
+
+    //                         // Store metadata
+    //                         mergedMesh.metadata = {
+    //                             nodeNumber: node.nodeNumber,
+    //                             originalMeshCount: meshesToMerge.length
+    //                         };
+
+    //                         console.log(`Created merged mesh for node ${node.nodeNumber} from ${meshesToMerge.length} meshes`);
+    //                     }
+
+    //                     // Clean up temporary meshes
+    //                     meshesToMerge.forEach(mesh => {
+    //                         if (mesh) mesh.dispose();
+    //                     });
+
+    //                 } catch (error) {
+    //                     console.error(`Error merging meshes for node ${node.nodeNumber}:`, error);
+    //                 }
+    //             }
+    //         }
+
+    //         // Position camera to fit the scene
+    //         if (scene.activeCamera && octreeData.data.bounds) {
+    //             fitCameraToOctree(scene.activeCamera, octreeData.data.bounds.max, octreeData.data.bounds.min);
+    //         }
+
+    //         setStatus('Successfully loaded and merged meshes');
+    //         scene.render();
+
+    //     } catch (error) {
+    //         console.error('Error loading models:', error);
+    //         setStatus(`Error: ${error.message}`);
+    //     } finally {
+    //         setIsLoading(false);
+    //     }
+    // };
+    const collectMergedMeshData = (mesh) => {
+        return {
+            name: mesh.name,
+            vertexData: {
+                positions: Array.from(mesh.getVerticesData(BABYLON.VertexBuffer.PositionKind) || []),
+                normals: Array.from(mesh.getVerticesData(BABYLON.VertexBuffer.NormalKind) || []),
+                indices: Array.from(mesh.getIndices() || [])
+            },
+            transforms: {
+                position: {
+                    x: mesh.position.x,
+                    y: mesh.position.y,
+                    z: mesh.position.z
+                },
+                rotation: {
+                    x: mesh.rotation.x,
+                    y: mesh.rotation.y,
+                    z: mesh.rotation.z
+                },
+                scaling: {
+                    x: mesh.scaling.x,
+                    y: mesh.scaling.y,
+                    z: mesh.scaling.z
+                },
+                worldMatrix: Array.from(mesh.getWorldMatrix().toArray())
+            },
+            boundingInfo: {
+                minimum: {
+                    x: mesh.getBoundingInfo().boundingBox.minimumWorld.x,
+                    y: mesh.getBoundingInfo().boundingBox.minimumWorld.y,
+                    z: mesh.getBoundingInfo().boundingBox.minimumWorld.z
+                },
+                maximum: {
+                    x: mesh.getBoundingInfo().boundingBox.maximumWorld.x,
+                    y: mesh.getBoundingInfo().boundingBox.maximumWorld.y,
+                    z: mesh.getBoundingInfo().boundingBox.maximumWorld.z
+                }
+            },
+            metadata: {
+                nodeNumber: mesh.metadata.nodeNumber,
+                originalMeshCount: mesh.metadata.originalMeshCount,
+                geometryInfo: {
+                    totalVertices: mesh.getTotalVertices(),
+                    totalIndices: mesh.getTotalIndices(),
+                    faceCount: mesh.getTotalIndices() / 3
+                }
+            }
+        };
+    }
+
     const loadModelsFromOctree = async () => {
         if (!scene || !engine) {
             setStatus('Error: Scene or Engine not initialized');
@@ -106,7 +510,7 @@ const Loadindexdb = ({ engine, scene }) => {
         setStatus('Starting to load models...');
 
         try {
-            const db = await openDB(DB_NAME, DB_VERSION);
+            const db = await initDB();
 
             // Create shared material
             const sharedMaterial = new BABYLON.StandardMaterial("sharedMaterial", scene);
@@ -115,7 +519,6 @@ const Loadindexdb = ({ engine, scene }) => {
             sharedMaterial.ambientColor = new BABYLON.Color3(0.1, 0.1, 0.1);
             sharedMaterial.backFaceCulling = false;
 
-            // Get octree data
             const octreeStore = db.transaction('octrees', 'readonly').objectStore('octrees');
             const octreeData = await octreeStore.get('mainOctree');
 
@@ -123,10 +526,8 @@ const Loadindexdb = ({ engine, scene }) => {
                 throw new Error('No octree data found');
             }
 
-            // Create root wireframe box
             createWireframeBox(octreeData.data.bounds);
 
-            // Get depth 4 nodes
             const depth4Nodes = [];
             const getDepth4Nodes = (block, depth = 0) => {
                 if (!block) return;
@@ -147,78 +548,112 @@ const Loadindexdb = ({ engine, scene }) => {
             getDepth4Nodes(octreeData.data.blockHierarchy);
             setStatus(`Found ${depth4Nodes.length} nodes at depth 4`);
 
-            // Get low-poly models
             const lmodelsStore = db.transaction('lmodels', 'readonly').objectStore('lmodels');
             const lowPolyModels = await lmodelsStore.getAll();
 
-            const createdMeshes = [];
-            let createdMeshCount = 0;
+            // Array to collect all merged mesh data
+            const mergedMeshesData = [];
 
-            // Create meshes
+            // Process each depth 4 node separately
             for (const node of depth4Nodes) {
+                const meshesToMerge = [];
+
+                // Find qualifying meshes for this node
                 for (const meshId of node.meshIds) {
                     const lowPolyMatch = lowPolyModels.find(lmodel =>
                         lmodel.fileName.includes(meshId) ||
                         lmodel.data.metadata.id.includes(meshId)
                     );
-
-                    if (lowPolyMatch) {
+                    // && lowPolyMatch.data.metadata.screenCoverage > 0.1
+                    if (lowPolyMatch && lowPolyMatch.data.metadata.screenCoverage > 0.1) {
                         try {
-                            const mesh = new BABYLON.Mesh(lowPolyMatch.data.name, scene);
-
-                            // Apply vertex data
+                            const tempMesh = new BABYLON.Mesh("temp", scene);
                             const vertexData = new BABYLON.VertexData();
                             vertexData.positions = new Float32Array(lowPolyMatch.data.vertexData.positions);
                             vertexData.indices = new Uint32Array(lowPolyMatch.data.vertexData.indices);
-
                             if (lowPolyMatch.data.vertexData.normals) {
                                 vertexData.normals = new Float32Array(lowPolyMatch.data.vertexData.normals);
                             }
+                            vertexData.applyToMesh(tempMesh);
 
-                            vertexData.applyToMesh(mesh);
-
-                            // Apply transforms
                             if (lowPolyMatch.data.transforms.worldMatrix) {
                                 const matrix = BABYLON.Matrix.FromArray(lowPolyMatch.data.transforms.worldMatrix);
-                                mesh.setPreTransformMatrix(matrix);
+                                tempMesh.setPreTransformMatrix(matrix);
                             } else {
-                                mesh.position = new BABYLON.Vector3(
+                                tempMesh.position = new BABYLON.Vector3(
                                     lowPolyMatch.data.transforms.position.x,
                                     lowPolyMatch.data.transforms.position.y,
                                     lowPolyMatch.data.transforms.position.z
                                 );
-                                mesh.rotation = new BABYLON.Vector3(
+                                tempMesh.rotation = new BABYLON.Vector3(
                                     lowPolyMatch.data.transforms.rotation.x,
                                     lowPolyMatch.data.transforms.rotation.y,
                                     lowPolyMatch.data.transforms.rotation.z
                                 );
-                                mesh.scaling = new BABYLON.Vector3(
+                                tempMesh.scaling = new BABYLON.Vector3(
                                     lowPolyMatch.data.transforms.scaling.x,
                                     lowPolyMatch.data.transforms.scaling.y,
                                     lowPolyMatch.data.transforms.scaling.z
                                 );
                             }
 
-                            // Apply shared material
-                            mesh.material = sharedMaterial;
-
-                            mesh.isVisible = true;
-                            mesh.isPickable = false;
-
-                            // Store metadata
-                            mesh.metadata = {
-                                originalId: meshId,
-                                nodeNumber: node.nodeNumber
-                            };
-
-                            createdMeshes.push(mesh);
-                            createdMeshCount++;
-                            setStatus(`Created ${createdMeshCount} meshes...`);
+                            meshesToMerge.push(tempMesh);
                         } catch (error) {
-                            console.error(`Error creating mesh for ${meshId}:`, error);
+                            console.error(`Error creating temporary mesh for ${meshId}:`, error);
                         }
                     }
                 }
+
+                // If we have meshes to merge for this node
+                if (meshesToMerge.length > 0) {
+                    try {
+                        const mergedMesh = BABYLON.Mesh.MergeMeshes(
+                            meshesToMerge,
+                            true,
+                            true,
+                            undefined,
+                            false,
+                            true
+                        );
+
+                        if (mergedMesh) {
+                            mergedMesh.name = `lpoly_node_${node.nodeNumber}`;
+                            mergedMesh.material = sharedMaterial;
+                            mergedMesh.isPickable = false;
+                            mergedMesh.isVisible = true;
+                            mergedMesh.metadata = {
+                                nodeNumber: node.nodeNumber,
+                                originalMeshCount: meshesToMerge.length
+                            };
+
+                            // Collect merged mesh data
+                            const mergedMeshData = collectMergedMeshData(mergedMesh);
+                            mergedMeshesData.push(mergedMeshData);
+
+                            console.log(`Created merged mesh for node ${node.nodeNumber} from ${meshesToMerge.length} meshes`);
+                        }
+
+                        // Clean up temporary meshes
+                        meshesToMerge.forEach(mesh => {
+                            if (mesh) mesh.dispose();
+                        });
+
+                    } catch (error) {
+                        console.error(`Error merging meshes for node ${node.nodeNumber}:`, error);
+                    }
+                }
+            }
+
+            // Store merged mesh data in IndexedDB
+            if (mergedMeshesData.length > 0) {
+                const mergedStore = db.transaction('mergedlpoly', 'readwrite').objectStore('mergedlpoly');
+
+                for (const meshData of mergedMeshesData) {
+                    await mergedStore.put(meshData);
+                }
+
+                console.log(`Stored ${mergedMeshesData.length} merged meshes in IndexedDB`);
+                setStatus(`Stored ${mergedMeshesData.length} merged meshes in database`);
             }
 
             // Position camera
@@ -226,25 +661,6 @@ const Loadindexdb = ({ engine, scene }) => {
                 fitCameraToOctree(scene.activeCamera, octreeData.data.bounds.max, octreeData.data.bounds.min);
             }
 
-            // Calculate and log screen coverages
-            const meshCoverages = createdMeshes.map(mesh => ({
-                meshName: mesh.name,
-                nodeNumber: mesh.metadata.nodeNumber,
-                coverage: calculateScreenCoverage(mesh, scene.activeCamera, engine),
-                vertexCount: mesh.getTotalVertices(),
-                faceCount: mesh.getTotalIndices() / 3
-            }));
-
-            console.log('Mesh Screen Coverages:', meshCoverages);
-            const sortedCoverages = [...meshCoverages].sort((a, b) => b.coverage - a.coverage);
-            console.log('Sorted Mesh Coverages (largest to smallest):', sortedCoverages);
-
-            createdMeshes.forEach(mesh => {
-                const coverage = calculateScreenCoverage(mesh, scene.activeCamera, engine);
-                mesh.isVisible = coverage <= 0.04194; // 1% screen coverage threshold
-            });
-
-            setStatus(`Successfully loaded ${createdMeshCount} meshes`);
             scene.render();
 
         } catch (error) {
@@ -256,6 +672,28 @@ const Loadindexdb = ({ engine, scene }) => {
     };
 
     return (
+        // <div className="p-4 bg-gray-100 rounded-lg">
+        //     <button
+        //         onClick={loadModelsFromOctree}
+        //         disabled={isLoading || !scene}
+        //         className={`mb-4 p-2 ${isLoading || !scene
+        //             ? 'bg-gray-400 cursor-not-allowed'
+        //             : 'bg-blue-500 hover:bg-blue-600'
+        //             } text-white rounded`}
+        //     >
+        //         {isLoading ? 'Loading...' : 'Load Models'}
+        //     </button>
+
+        //     <div className="mt-2">
+        //         <p className={`text-sm ${status.includes('Error')
+        //             ? 'text-red-500'
+        //             : 'text-green-500'
+        //             }`}>
+        //             {status}
+        //         </p>
+        //     </div>
+        // </div>
+
         <div className="p-4 bg-gray-100 rounded-lg">
             <button
                 onClick={loadModelsFromOctree}

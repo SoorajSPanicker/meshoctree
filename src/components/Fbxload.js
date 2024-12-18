@@ -32,6 +32,7 @@ function Fbxload() {
     });
     let scene;
     let engine;
+    const [processingComplete, setProcessingComplete] = useState(false);
     // Add these constants at the top with other state tracking variables
     const FACE_LIMIT1 = 30000;
     let greenMaterial;
@@ -508,8 +509,144 @@ function Fbxload() {
         };
     };
     let LmeshIdCounter = 1
-    const collectLpolyMeshInfo = (loadedMeshes) => {
+    // const collectLpolyMeshInfo = (loadedMeshes) => {
+    //     const meshInfoArray = [];
+
+    //     // Helper function to collect vertex data from a mesh
+    //     const collectVertexData = (mesh) => {
+    //         if (!mesh || !mesh.geometry) return null;
+
+    //         return {
+    //             positions: Array.from(mesh.getVerticesData(BABYLON.VertexBuffer.PositionKind) || []),
+    //             normals: Array.from(mesh.getVerticesData(BABYLON.VertexBuffer.NormalKind) || []),
+    //             indices: Array.from(mesh.getIndices() || []),
+    //             uvs: Array.from(mesh.getVerticesData(BABYLON.VertexBuffer.UVKind) || [])
+    //         };
+    //     };
+
+    //     // Helper function to collect transform data
+    //     const collectTransformData = (mesh) => {
+    //         return {
+    //             position: {
+    //                 x: mesh.position.x,
+    //                 y: mesh.position.y,
+    //                 z: mesh.position.z
+    //             },
+    //             rotation: {
+    //                 x: mesh.rotation.x,
+    //                 y: mesh.rotation.y,
+    //                 z: mesh.rotation.z
+    //             },
+    //             scaling: {
+    //                 x: mesh.scaling.x,
+    //                 y: mesh.scaling.y,
+    //                 z: mesh.scaling.z
+    //             },
+    //             worldMatrix: Array.from(mesh.getWorldMatrix().toArray())
+    //         };
+    //     };
+
+    //     // Helper function to collect bounding box information
+    //     const collectBoundingInfo = (mesh) => {
+    //         const boundingInfo = mesh.getBoundingInfo();
+    //         return {
+    //             minimum: {
+    //                 x: boundingInfo.minimum.x,
+    //                 y: boundingInfo.minimum.y,
+    //                 z: boundingInfo.minimum.z
+    //             },
+    //             maximum: {
+    //                 x: boundingInfo.maximum.x,
+    //                 y: boundingInfo.maximum.y,
+    //                 z: boundingInfo.maximum.z
+    //             },
+    //             boundingSphere: {
+    //                 center: {
+    //                     x: boundingInfo.boundingSphere.centerWorld.x,
+    //                     y: boundingInfo.boundingSphere.centerWorld.y,
+    //                     z: boundingInfo.boundingSphere.centerWorld.z
+    //                 },
+    //                 radius: boundingInfo.boundingSphere.radiusWorld
+    //             }
+    //         };
+    //     };
+
+    //     // // Generate unique ID
+    //     // const uuid = uuidv4().substring(0, 7);
+    //     // const meshId = `mesh-${uuid}`;
+
+    //     // Filter and process meshes
+    //     const originalMeshes = loadedMeshes.filter(mesh =>
+    //         mesh && mesh.name && !mesh.name.startsWith('merged_node_')
+    //     );
+
+    //     for (const mesh of originalMeshes) {
+    //         try {
+    //             // Generate unique ID
+    //             const paddedNumber = LmeshIdCounter.toString().padStart(7, '0');
+    //             const meshId = `lpolyori${paddedNumber}`;
+    //             LmeshIdCounter++;
+    //             const meshInfo = {
+    //                 name: mesh.name,
+    //                 vertexData: collectVertexData(mesh),
+    //                 transforms: collectTransformData(mesh),
+    //                 boundingInfo: collectBoundingInfo(mesh),
+    //                 metadata: {
+    //                     id: meshId,
+    //                     // isVisible: mesh.isVisible,
+    //                     // isEnabled: mesh.isEnabled,
+    //                     // renderingGroupId: mesh.renderingGroupId,
+    //                     material: mesh.material ? {
+    //                         name: mesh.material.name,
+    //                         id: mesh.material.uniqueId,
+    //                         diffuseColor: mesh.material.diffuseColor ? {
+    //                             r: mesh.material.diffuseColor.r,
+    //                             g: mesh.material.diffuseColor.g,
+    //                             b: mesh.material.diffuseColor.b
+    //                         } : null
+    //                     } : null,
+    //                     geometryInfo: {
+    //                         totalVertices: mesh.getTotalVertices(),
+    //                         totalIndices: mesh.getTotalIndices(),
+    //                         faceCount: mesh.getTotalIndices() / 3
+    //                     }
+    //                 }
+    //             };
+
+    //             meshInfoArray.push(meshInfo);
+    //         } catch (error) {
+    //             console.error(`Error collecting info for mesh ${mesh.name}:`, error);
+    //         }
+    //     }
+
+    //     return {
+    //         meshes: meshInfoArray,
+    //         summary: {
+    //             totalMeshes: meshInfoArray.length,
+    //             totalVertices: meshInfoArray.reduce((sum, mesh) => sum + mesh.metadata.geometryInfo.totalVertices, 0),
+    //             totalFaces: meshInfoArray.reduce((sum, mesh) => sum + mesh.metadata.geometryInfo.faceCount, 0)
+    //         }
+    //     };
+    // };
+
+
+    const collectLpolyMeshInfo = (loadedMeshes, camera, engine) => {
         const meshInfoArray = [];
+
+        // Helper function to calculate screen coverage
+        const calculateScreenCoverage = (mesh, camera, engine) => {
+            const boundingBox = mesh.getBoundingInfo().boundingBox;
+            const centerWorld = boundingBox.centerWorld;
+            const size = boundingBox.maximumWorld.subtract(boundingBox.minimumWorld);
+
+            const dimensions = [size.x, size.y, size.z];
+            const maxDimension = Math.max(...dimensions);
+            const otherDimensions = dimensions.filter(dim => dim !== maxDimension);
+            const averageOfOthers = otherDimensions.reduce((a, b) => a + b, 0) / otherDimensions.length;
+
+            const radiusScreen = averageOfOthers / camera.radius;
+            return radiusScreen * engine.getRenderWidth();
+        };
 
         // Helper function to collect vertex data from a mesh
         const collectVertexData = (mesh) => {
@@ -570,10 +707,6 @@ function Fbxload() {
             };
         };
 
-        // // Generate unique ID
-        // const uuid = uuidv4().substring(0, 7);
-        // const meshId = `mesh-${uuid}`;
-
         // Filter and process meshes
         const originalMeshes = loadedMeshes.filter(mesh =>
             mesh && mesh.name && !mesh.name.startsWith('merged_node_')
@@ -581,10 +714,14 @@ function Fbxload() {
 
         for (const mesh of originalMeshes) {
             try {
+                // Calculate screen coverage for this mesh
+                const screenCoverage = calculateScreenCoverage(mesh, camera, engine);
+
                 // Generate unique ID
                 const paddedNumber = LmeshIdCounter.toString().padStart(7, '0');
                 const meshId = `lpolyori${paddedNumber}`;
                 LmeshIdCounter++;
+
                 const meshInfo = {
                     name: mesh.name,
                     vertexData: collectVertexData(mesh),
@@ -592,9 +729,7 @@ function Fbxload() {
                     boundingInfo: collectBoundingInfo(mesh),
                     metadata: {
                         id: meshId,
-                        // isVisible: mesh.isVisible,
-                        // isEnabled: mesh.isEnabled,
-                        // renderingGroupId: mesh.renderingGroupId,
+                        screenCoverage: screenCoverage, // Add screen coverage to metadata
                         material: mesh.material ? {
                             name: mesh.material.name,
                             id: mesh.material.uniqueId,
@@ -627,7 +762,6 @@ function Fbxload() {
             }
         };
     };
-
 
     useEffect(() => {
         console.log(AllCumulativeBoundingBox);
@@ -1078,6 +1212,11 @@ function Fbxload() {
     }, [orimeshdatas])
 
     useEffect(() => {
+        console.log(lpolymeshdatas);
+
+    }, [lpolymeshdatas])
+
+    useEffect(() => {
         // Reset tracking structures
         nodesAtDepth = new Array(maxDepth + 1).fill(0);
         nodesAtDepthWithBoxes = new Array(maxDepth + 1).fill(0);
@@ -1088,9 +1227,6 @@ function Fbxload() {
         nodeParents = new Map();
         nodeCounter = 1;
         if (canvasRef.current && !sceneRef.current) {
-
-
-
             const newEngine = new BABYLON.Engine(canvasRef.current, true);
             const newScene = new BABYLON.Scene(newEngine);
 
@@ -1140,12 +1276,7 @@ function Fbxload() {
             window.addEventListener('resize', () => {
                 engine.resize();
             });
-
-
         }
-
-
-
         window.api.receive('gbl-file-content', (fileInfoArray) => {
             if (fileInfoArray && fileInfoArray.length > 0) {
                 console.log('Selected files:', fileInfoArray);
@@ -1218,6 +1349,9 @@ function Fbxload() {
                         const nonCylinderMeshes = [];
                         let orimeshdata = {}
                         let lpolymeshdata = {}
+                        setProcessingComplete(false);
+                        let allOriMeshes = [];  // Collect all original mesh data
+                        let allLPolyMeshes = []; // Collect all low-poly mesh data
                         for (const batch of fileInfoArray) {
                             await Promise.all(batch.map(async ({ convertedFilePath }) => {
                                 console.log(convertedFilePath);
@@ -1244,179 +1378,120 @@ function Fbxload() {
                                         disposeMaterialTextures(mesh.material);
                                         mesh.material.dispose();
                                     }
-                                    if (isPerfectCylinder(mesh)) {
-                                        // const replacement = createReplacementCylinder(mesh);
+                                    // if (isPerfectCylinder(mesh)) {
+                                    //     // const replacement = createReplacementCylinder(mesh);
 
-                                        // Calculate exact bounds and dimensions for cylinder
-                                        const positions = mesh.getVerticesData(BABYLON.VertexBuffer.PositionKind);
-                                        const worldMatrix = mesh.computeWorldMatrix(true);
+                                    //     // Calculate exact bounds and dimensions for cylinder
+                                    //     const positions = mesh.getVerticesData(BABYLON.VertexBuffer.PositionKind);
+                                    //     const worldMatrix = mesh.computeWorldMatrix(true);
 
-                                        // Transform vertices to world space
-                                        const worldPositions = [];
-                                        for (let i = 0; i < positions.length; i += 3) {
-                                            const worldPos = BABYLON.Vector3.TransformCoordinates(
-                                                new BABYLON.Vector3(positions[i], positions[i + 1], positions[i + 2]),
-                                                worldMatrix
-                                            );
-                                            worldPositions.push(worldPos);
-                                        }
+                                    //     // Transform vertices to world space
+                                    //     const worldPositions = [];
+                                    //     for (let i = 0; i < positions.length; i += 3) {
+                                    //         const worldPos = BABYLON.Vector3.TransformCoordinates(
+                                    //             new BABYLON.Vector3(positions[i], positions[i + 1], positions[i + 2]),
+                                    //             worldMatrix
+                                    //         );
+                                    //         worldPositions.push(worldPos);
+                                    //     }
 
-                                        // Calculate axis-aligned bounding box
-                                        let minX = Infinity, maxX = -Infinity;
-                                        let minY = Infinity, maxY = -Infinity;
-                                        let minZ = Infinity, maxZ = -Infinity;
-                                        let centerSum = BABYLON.Vector3.Zero();
+                                    //     // Calculate axis-aligned bounding box
+                                    //     let minX = Infinity, maxX = -Infinity;
+                                    //     let minY = Infinity, maxY = -Infinity;
+                                    //     let minZ = Infinity, maxZ = -Infinity;
+                                    //     let centerSum = BABYLON.Vector3.Zero();
 
-                                        worldPositions.forEach(pos => {
-                                            minX = Math.min(minX, pos.x);
-                                            maxX = Math.max(maxX, pos.x);
-                                            minY = Math.min(minY, pos.y);
-                                            maxY = Math.max(maxY, pos.y);
-                                            minZ = Math.min(minZ, pos.z);
-                                            maxZ = Math.max(maxZ, pos.z);
-                                            centerSum = centerSum.add(pos);
-                                        });
+                                    //     worldPositions.forEach(pos => {
+                                    //         minX = Math.min(minX, pos.x);
+                                    //         maxX = Math.max(maxX, pos.x);
+                                    //         minY = Math.min(minY, pos.y);
+                                    //         maxY = Math.max(maxY, pos.y);
+                                    //         minZ = Math.min(minZ, pos.z);
+                                    //         maxZ = Math.max(maxZ, pos.z);
+                                    //         centerSum = centerSum.add(pos);
+                                    //     });
 
-                                        // Calculate cylinder dimensions
-                                        const xLength = maxX - minX;
-                                        const yLength = maxY - minY;
-                                        const zLength = maxZ - minZ;
-                                        const centerPoint = centerSum.scale(1.0 / worldPositions.length);
+                                    //     // Calculate cylinder dimensions
+                                    //     const xLength = maxX - minX;
+                                    //     const yLength = maxY - minY;
+                                    //     const zLength = maxZ - minZ;
+                                    //     const centerPoint = centerSum.scale(1.0 / worldPositions.length);
 
-                                        // Determine orientation and dimensions
-                                        let cylinderHeight, cylinderDiameter;
-                                        let rotationAxis = BABYLON.Vector3.Zero();
-                                        let rotationAngle = 0;
+                                    //     // Determine orientation and dimensions
+                                    //     let cylinderHeight, cylinderDiameter;
+                                    //     let rotationAxis = BABYLON.Vector3.Zero();
+                                    //     let rotationAngle = 0;
 
-                                        // Check which axis is longest to determine cylinder orientation
-                                        if (xLength > yLength && xLength > zLength) {
-                                            // X-axis oriented cylinder
-                                            cylinderHeight = xLength;
-                                            cylinderDiameter = Math.max(yLength, zLength);
-                                            rotationAxis = new BABYLON.Vector3(0, 0, 1);
-                                            rotationAngle = Math.PI / 2;
-                                        } else if (zLength > yLength && zLength > xLength) {
-                                            // Z-axis oriented cylinder
-                                            cylinderHeight = zLength;
-                                            cylinderDiameter = Math.max(xLength, yLength);
-                                            rotationAxis = new BABYLON.Vector3(1, 0, 0);
-                                            rotationAngle = Math.PI / 2;
-                                        } else {
-                                            // Y-axis oriented cylinder
-                                            cylinderHeight = yLength;
-                                            cylinderDiameter = Math.max(xLength, zLength);
-                                            // No rotation needed for Y-axis
-                                        }
+                                    //     // Check which axis is longest to determine cylinder orientation
+                                    //     if (xLength > yLength && xLength > zLength) {
+                                    //         // X-axis oriented cylinder
+                                    //         cylinderHeight = xLength;
+                                    //         cylinderDiameter = Math.max(yLength, zLength);
+                                    //         rotationAxis = new BABYLON.Vector3(0, 0, 1);
+                                    //         rotationAngle = Math.PI / 2;
+                                    //     } else if (zLength > yLength && zLength > xLength) {
+                                    //         // Z-axis oriented cylinder
+                                    //         cylinderHeight = zLength;
+                                    //         cylinderDiameter = Math.max(xLength, yLength);
+                                    //         rotationAxis = new BABYLON.Vector3(1, 0, 0);
+                                    //         rotationAngle = Math.PI / 2;
+                                    //     } else {
+                                    //         // Y-axis oriented cylinder
+                                    //         cylinderHeight = yLength;
+                                    //         cylinderDiameter = Math.max(xLength, zLength);
+                                    //         // No rotation needed for Y-axis
+                                    //     }
 
-                                        // Create cylinder with correct dimensions
-                                        const cylinder = BABYLON.MeshBuilder.CreateCylinder(mesh.name, {
-                                            height: cylinderHeight,
-                                            diameter: cylinderDiameter,
-                                            tessellation: 32
-                                        }, scene);
-                                        console.log(mesh.name);
-                                        console.log(cylinder.name);
-
-
-
-                                        // Apply rotation if needed
-                                        if (rotationAxis && rotationAngle) {
-                                            cylinder.rotate(rotationAxis, rotationAngle);
-                                        }
-                                        // Position cylinder
-                                        cylinder.position = centerPoint;
-
-                                        mesh.dispose();
+                                    //     // Create cylinder with correct dimensions
+                                    //     const cylinder = BABYLON.MeshBuilder.CreateCylinder(mesh.name, {
+                                    //         height: cylinderHeight,
+                                    //         diameter: cylinderDiameter,
+                                    //         tessellation: 32
+                                    //     }, scene);
+                                    //     console.log(mesh.name);
+                                    //     console.log(cylinder.name);
 
 
-                                        // Create material for replacement cylinder
-                                        const cylinderMaterial = new BABYLON.StandardMaterial("cylinderMat", scene);
-                                        cylinderMaterial.diffuseColor = new BABYLON.Color3(0, 0.8, 0);
-                                        cylinderMaterial.alpha = 0.7;
-                                        cylinderMaterial.backFaceCulling = false;
-                                        cylinder.material = cylinderMaterial;
 
-                                        // Enable transparency
-                                        cylinderMaterial.transparencyMode = BABYLON.Material.MATERIAL_ALPHABLEND;
-                                        cylinderReplacements.push(cylinder);
-                                        // mesh.setEnabled(false); // Disable original cylinder
-                                    } else {
-                                        nonCylinderMeshes.push(mesh);
-                                    }
+                                    //     // Apply rotation if needed
+                                    //     if (rotationAxis && rotationAngle) {
+                                    //         cylinder.rotate(rotationAxis, rotationAngle);
+                                    //     }
+                                    //     // Position cylinder
+                                    //     cylinder.position = centerPoint;
+
+                                    //     mesh.dispose();
+
+
+                                    //     // Create material for replacement cylinder
+                                    //     const cylinderMaterial = new BABYLON.StandardMaterial("cylinderMat", scene);
+                                    //     cylinderMaterial.diffuseColor = new BABYLON.Color3(0, 0.8, 0);
+                                    //     cylinderMaterial.alpha = 0.7;
+                                    //     cylinderMaterial.backFaceCulling = false;
+                                    //     cylinder.material = cylinderMaterial;
+
+                                    //     // Enable transparency
+                                    //     cylinderMaterial.transparencyMode = BABYLON.Material.MATERIAL_ALPHABLEND;
+                                    //     cylinderReplacements.push(cylinder);
+                                    //     // mesh.setEnabled(false); // Disable original cylinder
+                                    // } else {
+                                    //     nonCylinderMeshes.push(mesh);
+                                    // }
 
 
                                 });
-                                const newAllMeshes = [...cylinderReplacements, ...nonCylinderMeshes];
-                                console.log(newAllMeshes);
-                                setAllLoadedMeshes(prevMeshes => [...prevMeshes, ...newAllMeshes])
-                                orimeshdata = await collectOriginalMeshInfo(newAllMeshes);
+                                // const newAllMeshes = [...cylinderReplacements, ...nonCylinderMeshes];
+                                // console.log(newAllMeshes);
+                                setAllLoadedMeshes(prevMeshes => [...prevMeshes, ...loadedMeshes])
+                                orimeshdata = await collectOriginalMeshInfo(loadedMeshes);
                                 console.log(orimeshdata);
-                                setorimeshdatas(orimeshdata.meshes)
-                                // // for (const mesh of newAllMeshes) {
-                                // //     try {
-                                // //         const lod1 = await simplifyMesh(mesh, 3);
-                                // //         console.log(lod1)
-                                // //         lod1.isVisible = false;
-                                // //         lod1.setEnabled(false);
-                                // //         const lod2 = await simplifyMesh(lod1, 10);
-                                // //         console.log(lod2)
-                                // //         lod2.isVisible = false;
-                                // //         lod2.setEnabled(false);
-                                // //         const lod3 = await simplifyMesh(lod2, 20);
-                                // //         console.log(lod3)
+                                allOriMeshes = [...allOriMeshes, ...orimeshdata.meshes];
 
-                                // //         let newMeshes = [];
+                                // setorimeshdatas(orimeshdata.meshes)
 
-                                // //         if (lod3) {
-                                // //             lod3.name = `${mesh.name}_lpoly_angle20`;
-                                // //             lod3.isVisible = false;
-                                // //             lod3.setEnabled(false);
-                                // //             newMeshes.push(lod3);
-                                // //         }
-
-                                // //         setalllpolymeshes(prevMeshes => [...prevMeshes, ...newMeshes]);
-
-                                // //     } catch (error) {
-                                // //         console.error(`Error simplifying mesh ${mesh.name}:`, error);
-                                // //     }
-                                // // }
-                                // for (const mesh of newAllMeshes) {
-                                //     try {
-                                //         // Create LOD1
-                                //         const lod1 = await simplifyMesh(mesh, 3);
-                                //         if (!lod1) continue;
-
-                                //         // Create LOD2
-                                //         const lod2 = await simplifyMesh(lod1, 10);
-                                //         // Dispose LOD1 immediately since we don't need it anymore
-                                //         lod1.dispose();
-                                //         if (!lod2) continue;
-
-                                //         // Create LOD3
-                                //         const lod3 = await simplifyMesh(lod2, 20);
-                                //         // Dispose LOD2 immediately
-                                //         lod2.dispose();
-                                //         if (!lod3) continue;
-
-                                //         // Set final LOD3 properties
-                                //         lod3.name = `${mesh.name}_lpoly_angle20`;
-                                //         lod3.isVisible = false;
-                                //         lod3.setEnabled(false);
-
-                                //         // Add to all low poly meshes
-                                //         setalllpolymeshes(prevMeshes => [...prevMeshes, lod3]);
-
-                                //     } catch (error) {
-                                //         console.error(`Error simplifying mesh ${mesh.name}:`, error);
-                                //     }
-                                // }
-                                // console.log(`all meshes to load : ${alllpolyMeshes}`);
-                                // lpolymeshdata = await collectLpolyMeshInfo(newAllMeshes);
-                                // console.log(lpolymeshdata);
-                                // setlpolymeshdatas(lpolymeshdata.meshes)
-
+                                // setorimeshdatas(prevMeshes => [...prevMeshes, ...orimeshdata.meshes])
                                 // Process low poly meshes
-                                const processedMeshes = await Promise.all(newAllMeshes.map(async (mesh) => {
+                                const processedMeshes = await Promise.all(loadedMeshes.map(async (mesh) => {
                                     try {
                                         const lod1 = await simplifyMesh(mesh, 3);
                                         if (!lod1) return null;
@@ -1443,46 +1518,46 @@ function Fbxload() {
                                 const validMeshes = processedMeshes.filter(mesh => mesh !== null);
                                 setalllpolymeshes(prevMeshes => [...prevMeshes, ...validMeshes]);
 
-                                lpolymeshdata = await collectLpolyMeshInfo(newAllMeshes);
-                                setlpolymeshdatas(lpolymeshdata.meshes);
+                                lpolymeshdata = await collectLpolyMeshInfo(validMeshes, camera, engine);
+                                // // console.log(lpolymeshdata.meshes);
+
+                                // // setlpolymeshdatas(lpolymeshdata.meshes);
+                                // setlpolymeshdatas(prevMeshes => [...prevMeshes, ...lpolymeshdata.meshes]);
+                                allLPolyMeshes = [...allLPolyMeshes, ...lpolymeshdata.meshes];
                             }));
 
-                            // // const rootBlock = createOctreeBlock(
-                            // //     scene,
-                            // //     convertedBoundingBox.min,
-                            // //     convertedBoundingBox.max,
-                            // //     allLoadedMeshes,
-                            // //     0,
-                            // //     null
-                            // // );
-                            // // console.log(rootBlock);
-                            console.log('Overall bounds:', convertedBoundingBox);
-                            console.log('First mesh transforms:', orimeshdata.meshes[0].transforms);
-                            console.log('First mesh world matrix:', BABYLON.Matrix.FromArray(orimeshdata.meshes[0].transforms.worldMatrix));
+                            // console.log('Overall bounds:', convertedBoundingBox);
+                            // console.log('First mesh transforms:', orimeshdata.meshes[0].transforms);
+                            // console.log('First mesh world matrix:', BABYLON.Matrix.FromArray(orimeshdata.meshes[0].transforms.worldMatrix));
 
 
-                            // console.log('Created octree:', {
-                            //     totalNodes: nodeCounter - 1,
-                            //     nodesAtDepth,
-                            //     nodesAtDepthWithBoxes,
-                            //     meshesAtDepth: Array.from({ length: maxDepth + 1 }, (_, i) =>
-                            //         boxesAtDepth[i] ? boxesAtDepth[i].size : 0
-                            //     )
-                            // });
-                            // console.log(rootBlockbound);
+                            // // console.log('Created octree:', {
+                            // //     totalNodes: nodeCounter - 1,
+                            // //     nodesAtDepth,
+                            // //     nodesAtDepthWithBoxes,
+                            // //     meshesAtDepth: Array.from({ length: maxDepth + 1 }, (_, i) =>
+                            // //         boxesAtDepth[i] ? boxesAtDepth[i].size : 0
+                            // //     )
+                            // // });
+                            // // console.log(rootBlockbound);
 
                         }
                         const rootBlockbound = createOctreeBlock(
                             scene,
                             convertedBoundingBox.min,
                             convertedBoundingBox.max,
-                            orimeshdata.meshes,  // Pass mesh info array instead of actual meshes
+                            allOriMeshes,  // Pass mesh info array instead of actual meshes
                             0,
                             null
                         );
                         const octreedata = await collectOctreeInfo(rootBlockbound, convertedBoundingBox)
-                        console.log(octreedata);
-                        setoctreedatas(octreedata)
+                        // console.log(octreedata);
+                        // setoctreedatas(octreedata)
+                        // setProcessingComplete(true);
+                        setorimeshdatas(allOriMeshes);
+                        setlpolymeshdatas(allLPolyMeshes);
+                        setoctreedatas(octreedata);
+                        setProcessingComplete(true);
                     }
                 } catch (error) {
                     console.error('Error processing meshes:', error);
@@ -1605,7 +1680,7 @@ function Fbxload() {
 
             <canvas ref={canvasRef} style={{ width: '100%', height: '35%' }} />
 
-            {octreedatas && orimeshdatas.length > 0 && lpolymeshdatas.length > 0 && (
+            {processingComplete && octreedatas && orimeshdatas.length > 0 && lpolymeshdatas.length > 0 && (
                 <Octreestorage
                     convertedModels={[
                         ...orimeshdatas.map(data => ({

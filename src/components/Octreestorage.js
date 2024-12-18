@@ -162,6 +162,35 @@ const Octreestorage = ({ convertedModels, lpolyModels, octree , scene }) => {
 };
    
     // Serialize mesh data (for both original and low-poly models)
+    const serializelMeshData = (meshData) => {
+        return {
+            fileName: meshData.fileName,
+            data: {
+                name: meshData.data.name,
+                vertexData: meshData.data.vertexData,
+                transforms: {
+                    position: meshData.data.transforms.position,
+                    rotation: meshData.data.transforms.rotation,
+                    scaling: meshData.data.transforms.scaling,
+                    worldMatrix: Array.from(meshData.data.transforms.worldMatrix)
+                },
+                boundingInfo: meshData.data.boundingInfo,
+                metadata: {
+                    id: meshData.data.metadata.id,
+                    screenCoverage: meshData.data.metadata.screenCoverage !== undefined 
+                    ? meshData.data.metadata.screenCoverage 
+                    : null,
+                    geometryInfo: meshData.data.metadata.geometryInfo,
+                    material: meshData.data.metadata.material ? {
+                        name: meshData.data.metadata.material.name,
+                        id: meshData.data.metadata.material.id,
+                        diffuseColor: meshData.data.metadata.material.diffuseColor
+                    } : null
+                }
+            }
+        };
+    };
+
     const serializeMeshData = (meshData) => {
         return {
             fileName: meshData.fileName,
@@ -274,7 +303,7 @@ const Octreestorage = ({ convertedModels, lpolyModels, octree , scene }) => {
 
             for (const model of lpolyModels) {
                 setStorageStatus(`Storing low-poly model: ${model.fileName}`);
-                const serializedModel = serializeMeshData(model);
+                const serializedModel = serializelMeshData(model);
                 await lmodelStore.put(serializedModel);
             }
 
