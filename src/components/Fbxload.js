@@ -509,125 +509,7 @@ function Fbxload() {
         };
     };
     let LmeshIdCounter = 1
-    // const collectLpolyMeshInfo = (loadedMeshes) => {
-    //     const meshInfoArray = [];
 
-    //     // Helper function to collect vertex data from a mesh
-    //     const collectVertexData = (mesh) => {
-    //         if (!mesh || !mesh.geometry) return null;
-
-    //         return {
-    //             positions: Array.from(mesh.getVerticesData(BABYLON.VertexBuffer.PositionKind) || []),
-    //             normals: Array.from(mesh.getVerticesData(BABYLON.VertexBuffer.NormalKind) || []),
-    //             indices: Array.from(mesh.getIndices() || []),
-    //             uvs: Array.from(mesh.getVerticesData(BABYLON.VertexBuffer.UVKind) || [])
-    //         };
-    //     };
-
-    //     // Helper function to collect transform data
-    //     const collectTransformData = (mesh) => {
-    //         return {
-    //             position: {
-    //                 x: mesh.position.x,
-    //                 y: mesh.position.y,
-    //                 z: mesh.position.z
-    //             },
-    //             rotation: {
-    //                 x: mesh.rotation.x,
-    //                 y: mesh.rotation.y,
-    //                 z: mesh.rotation.z
-    //             },
-    //             scaling: {
-    //                 x: mesh.scaling.x,
-    //                 y: mesh.scaling.y,
-    //                 z: mesh.scaling.z
-    //             },
-    //             worldMatrix: Array.from(mesh.getWorldMatrix().toArray())
-    //         };
-    //     };
-
-    //     // Helper function to collect bounding box information
-    //     const collectBoundingInfo = (mesh) => {
-    //         const boundingInfo = mesh.getBoundingInfo();
-    //         return {
-    //             minimum: {
-    //                 x: boundingInfo.minimum.x,
-    //                 y: boundingInfo.minimum.y,
-    //                 z: boundingInfo.minimum.z
-    //             },
-    //             maximum: {
-    //                 x: boundingInfo.maximum.x,
-    //                 y: boundingInfo.maximum.y,
-    //                 z: boundingInfo.maximum.z
-    //             },
-    //             boundingSphere: {
-    //                 center: {
-    //                     x: boundingInfo.boundingSphere.centerWorld.x,
-    //                     y: boundingInfo.boundingSphere.centerWorld.y,
-    //                     z: boundingInfo.boundingSphere.centerWorld.z
-    //                 },
-    //                 radius: boundingInfo.boundingSphere.radiusWorld
-    //             }
-    //         };
-    //     };
-
-    //     // // Generate unique ID
-    //     // const uuid = uuidv4().substring(0, 7);
-    //     // const meshId = `mesh-${uuid}`;
-
-    //     // Filter and process meshes
-    //     const originalMeshes = loadedMeshes.filter(mesh =>
-    //         mesh && mesh.name && !mesh.name.startsWith('merged_node_')
-    //     );
-
-    //     for (const mesh of originalMeshes) {
-    //         try {
-    //             // Generate unique ID
-    //             const paddedNumber = LmeshIdCounter.toString().padStart(7, '0');
-    //             const meshId = `lpolyori${paddedNumber}`;
-    //             LmeshIdCounter++;
-    //             const meshInfo = {
-    //                 name: mesh.name,
-    //                 vertexData: collectVertexData(mesh),
-    //                 transforms: collectTransformData(mesh),
-    //                 boundingInfo: collectBoundingInfo(mesh),
-    //                 metadata: {
-    //                     id: meshId,
-    //                     // isVisible: mesh.isVisible,
-    //                     // isEnabled: mesh.isEnabled,
-    //                     // renderingGroupId: mesh.renderingGroupId,
-    //                     material: mesh.material ? {
-    //                         name: mesh.material.name,
-    //                         id: mesh.material.uniqueId,
-    //                         diffuseColor: mesh.material.diffuseColor ? {
-    //                             r: mesh.material.diffuseColor.r,
-    //                             g: mesh.material.diffuseColor.g,
-    //                             b: mesh.material.diffuseColor.b
-    //                         } : null
-    //                     } : null,
-    //                     geometryInfo: {
-    //                         totalVertices: mesh.getTotalVertices(),
-    //                         totalIndices: mesh.getTotalIndices(),
-    //                         faceCount: mesh.getTotalIndices() / 3
-    //                     }
-    //                 }
-    //             };
-
-    //             meshInfoArray.push(meshInfo);
-    //         } catch (error) {
-    //             console.error(`Error collecting info for mesh ${mesh.name}:`, error);
-    //         }
-    //     }
-
-    //     return {
-    //         meshes: meshInfoArray,
-    //         summary: {
-    //             totalMeshes: meshInfoArray.length,
-    //             totalVertices: meshInfoArray.reduce((sum, mesh) => sum + mesh.metadata.geometryInfo.totalVertices, 0),
-    //             totalFaces: meshInfoArray.reduce((sum, mesh) => sum + mesh.metadata.geometryInfo.faceCount, 0)
-    //         }
-    //     };
-    // };
 
 
     const collectLpolyMeshInfo = (loadedMeshes, camera, engine) => {
@@ -1205,6 +1087,58 @@ function Fbxload() {
         };
     };
 
+    const processMeshesInBatches = async (meshes, batchSize = 10) => {
+        const results = [];
+
+        // Process meshes in batches
+        for (let i = 0; i < meshes.length; i += batchSize) {
+            const batch = meshes.slice(i, i + batchSize);
+
+            // Process each mesh in the batch sequentially
+            for (const mesh of batch) {
+                try {
+                    // First level of simplification
+                    const lod1 = await simplifyMesh(mesh, 3);
+                    if (!lod1) {
+                        continue;
+                    }
+
+                    // Second level of simplification
+                    const lod2 = await simplifyMesh(lod1, 10);
+                    lod1.dispose();
+                    if (!lod2) {
+                        continue;
+                    }
+
+                    // Third level of simplification
+                    const lod3 = await simplifyMesh(lod2, 20);
+                    lod2.dispose();
+                    if (!lod3) {
+                        continue;
+                    }
+
+                    // Configure final mesh
+                    lod3.name = `${mesh.name}_lpoly_angle20`;
+                    lod3.isVisible = false;
+                    lod3.setEnabled(false);
+
+                    results.push(lod3);
+
+                    // Force garbage collection between meshes
+                    if (window.gc) {
+                        window.gc();
+                    }
+                } catch (error) {
+                    console.error(`Error simplifying mesh ${mesh.name}:`, error);
+                }
+            }
+
+            // Wait a bit between batches to allow memory cleanup
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+
+        return results;
+    };
 
     useEffect(() => {
         console.log(orimeshdatas);
@@ -1491,31 +1425,33 @@ function Fbxload() {
 
                                 // setorimeshdatas(prevMeshes => [...prevMeshes, ...orimeshdata.meshes])
                                 // Process low poly meshes
-                                const processedMeshes = await Promise.all(loadedMeshes.map(async (mesh) => {
-                                    try {
-                                        const lod1 = await simplifyMesh(mesh, 3);
-                                        if (!lod1) return null;
+                                // const processedMeshes = await Promise.all(loadedMeshes.map(async (mesh) => {
+                                //     try {
+                                //         const lod1 = await simplifyMesh(mesh, 3);
+                                //         if (!lod1) return null;
 
-                                        const lod2 = await simplifyMesh(lod1, 10);
-                                        lod1.dispose();
-                                        if (!lod2) return null;
+                                //         const lod2 = await simplifyMesh(lod1, 10);
+                                //         lod1.dispose();
+                                //         if (!lod2) return null;
 
-                                        const lod3 = await simplifyMesh(lod2, 20);
-                                        lod2.dispose();
-                                        if (!lod3) return null;
+                                //         const lod3 = await simplifyMesh(lod2, 20);
+                                //         lod2.dispose();
+                                //         if (!lod3) return null;
 
-                                        lod3.name = `${mesh.name}_lpoly_angle20`;
-                                        lod3.isVisible = false;
-                                        lod3.setEnabled(false);
+                                //         lod3.name = `${mesh.name}_lpoly_angle20`;
+                                //         lod3.isVisible = false;
+                                //         lod3.setEnabled(false);
 
-                                        return lod3;
-                                    } catch (error) {
-                                        console.error(`Error simplifying mesh ${mesh.name}:`, error);
-                                        return null;
-                                    }
-                                }));
+                                //         return lod3;
+                                //     } catch (error) {
+                                //         console.error(`Error simplifying mesh ${mesh.name}:`, error);
+                                //         return null;
+                                //     }
+                                // }));
 
-                                const validMeshes = processedMeshes.filter(mesh => mesh !== null);
+                                // const validMeshes = processedMeshes.filter(mesh => mesh !== null);
+                                // setalllpolymeshes(prevMeshes => [...prevMeshes, ...validMeshes]);
+                                const validMeshes = await processMeshesInBatches(loadedMeshes);
                                 setalllpolymeshes(prevMeshes => [...prevMeshes, ...validMeshes]);
 
                                 lpolymeshdata = await collectLpolyMeshInfo(validMeshes, camera, engine);
@@ -1524,22 +1460,13 @@ function Fbxload() {
                                 // // setlpolymeshdatas(lpolymeshdata.meshes);
                                 // setlpolymeshdatas(prevMeshes => [...prevMeshes, ...lpolymeshdata.meshes]);
                                 allLPolyMeshes = [...allLPolyMeshes, ...lpolymeshdata.meshes];
+                                loadedMeshes.forEach(mesh => {
+                                    if (mesh && mesh.dispose) {
+                                        mesh.dispose();
+                                    }
+                                });
                             }));
 
-                            // console.log('Overall bounds:', convertedBoundingBox);
-                            // console.log('First mesh transforms:', orimeshdata.meshes[0].transforms);
-                            // console.log('First mesh world matrix:', BABYLON.Matrix.FromArray(orimeshdata.meshes[0].transforms.worldMatrix));
-
-
-                            // // console.log('Created octree:', {
-                            // //     totalNodes: nodeCounter - 1,
-                            // //     nodesAtDepth,
-                            // //     nodesAtDepthWithBoxes,
-                            // //     meshesAtDepth: Array.from({ length: maxDepth + 1 }, (_, i) =>
-                            // //         boxesAtDepth[i] ? boxesAtDepth[i].size : 0
-                            // //     )
-                            // // });
-                            // // console.log(rootBlockbound);
 
                         }
                         const rootBlockbound = createOctreeBlock(
