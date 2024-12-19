@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { openDB } from 'idb';
 import * as BABYLON from '@babylonjs/core';
-
+import { GLTF2Export } from '@babylonjs/serializers/glTF';
 const Loadindexdb = ({ engine, scene }) => {
 
     const [status, setStatus] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isLoadingLpoly, setIsLoadingLpoly] = useState(false);
-
+    const [isDownloading, setIsDownloading] = useState(false);
     const DB_NAME = 'ModelStorage';
     const DB_VERSION = 3; // Increased version for new store
     const TARGET_DEPTH = 4;
@@ -153,6 +153,311 @@ const Loadindexdb = ({ engine, scene }) => {
             }
         };
     }
+
+    const downloadMergedMeshes = async () => {
+        if (!scene) {
+            setStatus('Error: Scene not initialized');
+            return;
+        }
+
+        setIsDownloading(true);
+        setStatus('Starting mesh export process...');
+
+        try {
+            const db = await initDB();
+            const mergedStore = db.transaction('mergedlpoly', 'readonly').objectStore('mergedlpoly');
+            const allMergedMeshes = await mergedStore.getAll();
+
+            if (!allMergedMeshes || allMergedMeshes.length === 0) {
+                throw new Error('No merged meshes found in database');
+            }
+
+            setStatus(`Found ${allMergedMeshes.length} meshes to export`);
+
+            // Prepare download directory
+            window.api.send('prepare-download-directory');
+
+            // Create a temporary scene for GLB export
+            const tempScene = new BABYLON.Scene(engine);
+
+            // Process each mesh
+            let processedMeshes = 0;
+            for (const meshData of allMergedMeshes) {
+                try {
+                    // Create mesh in temporary scene
+                    const mesh = new BABYLON.Mesh(meshData.name, tempScene);
+
+                    // Apply vertex data
+                    const vertexData = new BABYLON.VertexData();
+                    vertexData.positions = new Float32Array(meshData.vertexData.positions);
+                    vertexData.indices = new Uint32Array(meshData.vertexData.indices);
+                    if (meshData.vertexData.normals) {
+                        vertexData.normals = new Float32Array(meshData.vertexData.normals);
+                    }
+                    vertexData.applyToMesh(mesh);
+
+                    // Apply transforms
+                    if (meshData.transforms.worldMatrix) {
+                        const matrix = BABYLON.Matrix.FromArray(meshData.transforms.worldMatrix);
+                        mesh.setPreTransformMatrix(matrix);
+                    } else {
+                        mesh.position = new BABYLON.Vector3(
+                            meshData.transforms.position.x,
+                            meshData.transforms.position.y,
+                            meshData.transforms.position.z
+                        );
+                        mesh.rotation = new BABYLON.Vector3(
+                            meshData.transforms.rotation.x,
+                            meshData.transforms.rotation.y,
+                            meshData.transforms.rotation.z
+                        );
+                        mesh.scaling = new BABYLON.Vector3(
+                            meshData.transforms.scaling.x,
+                            meshData.transforms.scaling.y,
+                            meshData.transforms.scaling.z
+                        );
+                    }
+
+                    // Create material with GLB-compatible settings
+                    const material = new BABYLON.StandardMaterial(mesh.name + "_material", tempScene);
+                    material.backFaceCulling = true;  // Enable back-face culling for GLB compatibility
+                    material.twoSidedLighting = true; // Enable two-sided lighting
+                    material.diffuseColor = new BABYLON.Color3(0.7, 0.7, 0.7);
+                    mesh.material = material;
+
+                    // Export to GLB with proper options
+                    const glbData = await GLTF2Export.GLBAsync(tempScene, mesh.name, {
+                        shouldExportNode: (node) => node === mesh,
+                        exportWithoutWaitingForScene: true,
+                        binary: true,
+                        includeCoordinateSystemConversionNodes: true
+                    });
+
+                    // Get the binary data as Uint8Array
+                    const binaryData = await glbData.glTFFiles[`${mesh.name}.glb`].arrayBuffer();
+                    const uint8Array = new Uint8Array(binaryData);
+
+                    // Send binary data to main process
+                    window.api.send('save-mesh-data', {
+                        fileName: `${meshData.name}.glb`,
+                        meshName: meshData.name,
+                        glbData: Array.from(uint8Array)  // Convert to regular array for IPC transfer
+                    });
+
+                    // Clean up
+                    mesh.dispose();
+                    material.dispose();
+
+                    processedMeshes++;
+                    setStatus(`Exported ${processedMeshes} of ${allMergedMeshes.length} meshes`);
+
+                } catch (error) {
+                    console.error(`Error processing mesh ${meshData.name}:`, error);
+                }
+            }
+
+            // Clean up temporary scene
+            tempScene.dispose();
+
+            // Create final zip
+            window.api.send('create-final-zip');
+
+            // Listen for completion
+            window.api.receive('zip-complete', (result) => {
+                if (result.success) {
+                    setStatus(`Successfully created zip file at ${result.zipPath}`);
+                } else {
+                    setStatus(`Error creating zip: ${result.error}`);
+                }
+                setIsDownloading(false);
+            });
+
+        } catch (error) {
+            console.error('Error during mesh export:', error);
+            setStatus(`Error: ${error.message}`);
+            setIsDownloading(false);
+        }
+    };
+
+    // const downloadMergedMeshes = async () => {
+    //     if (!scene) {
+    //         setStatus('Error: Scene not initialized');
+    //         return;
+    //     }
+
+    //     setIsDownloading(true);
+    //     setStatus('Starting mesh export process...');
+
+    //     try {
+    //         const db = await initDB();
+    //         const mergedStore = db.transaction('mergedlpoly', 'readonly').objectStore('mergedlpoly');
+    //         const allMergedMeshes = await mergedStore.getAll();
+
+    //         if (!allMergedMeshes || allMergedMeshes.length === 0) {
+    //             throw new Error('No merged meshes found in database');
+    //         }
+
+    //         setStatus(`Found ${allMergedMeshes.length} meshes to export`);
+
+    //         // Prepare download directory
+    //         window.api.send('prepare-download-directory');
+
+    //         // Create a temporary scene for GLB export
+    //         const tempScene = new BABYLON.Scene(engine);
+
+    //         // Process each mesh
+    //         let processedMeshes = 0;
+    //         for (const meshData of allMergedMeshes) {
+    //             try {
+    //                 // Create mesh in temporary scene
+    //                 const mesh = new BABYLON.Mesh(meshData.name, tempScene);
+
+    //                 // Apply vertex data
+    //                 const vertexData = new BABYLON.VertexData();
+    //                 vertexData.positions = new Float32Array(meshData.vertexData.positions);
+    //                 vertexData.indices = new Uint32Array(meshData.vertexData.indices);
+    //                 if (meshData.vertexData.normals) {
+    //                     vertexData.normals = new Float32Array(meshData.vertexData.normals);
+    //                 }
+    //                 vertexData.applyToMesh(mesh);
+
+    //                 // Apply transforms
+    //                 if (meshData.transforms.worldMatrix) {
+    //                     const matrix = BABYLON.Matrix.FromArray(meshData.transforms.worldMatrix);
+    //                     mesh.setPreTransformMatrix(matrix);
+    //                 } else {
+    //                     mesh.position = new BABYLON.Vector3(
+    //                         meshData.transforms.position.x,
+    //                         meshData.transforms.position.y,
+    //                         meshData.transforms.position.z
+    //                     );
+    //                     mesh.rotation = new BABYLON.Vector3(
+    //                         meshData.transforms.rotation.x,
+    //                         meshData.transforms.rotation.y,
+    //                         meshData.transforms.rotation.z
+    //                     );
+    //                     mesh.scaling = new BABYLON.Vector3(
+    //                         meshData.transforms.scaling.x,
+    //                         meshData.transforms.scaling.y,
+    //                         meshData.transforms.scaling.z
+    //                     );
+    //                 }
+
+    //                 // Create material
+    //                 const material = new BABYLON.StandardMaterial(mesh.name + "_material", tempScene);
+    //                 material.backFaceCulling = false;
+    //                 mesh.material = material;
+
+    //                 // Export to GLB
+    //                 const glbData = await GLTF2Export.GLBAsync(tempScene, mesh.name, {
+    //                     shouldExportNode: (node) => node === mesh,
+    //                     exportWithoutWaitingForScene: true
+    //                 });
+
+    //                 // Send GLB data to main process
+    //                 window.api.send('save-mesh-data', {
+    //                     fileName: `${meshData.name}.glb`,
+    //                     meshName: meshData.name,
+    //                     glbData: glbData.glTFFiles[`${mesh.name}.glb`]
+    //                 });
+
+    //                 // Clean up
+    //                 mesh.dispose();
+    //                 material.dispose();
+
+    //                 processedMeshes++;
+    //                 setStatus(`Exported ${processedMeshes} of ${allMergedMeshes.length} meshes`);
+
+    //             } catch (error) {
+    //                 console.error(`Error processing mesh ${meshData.name}:`, error);
+    //             }
+    //         }
+
+    //         // Clean up temporary scene
+    //         tempScene.dispose();
+
+    //         // Create final zip
+    //         window.api.send('create-final-zip');
+
+    //         // Listen for completion
+    //         window.api.receive('zip-complete', (result) => {
+    //             if (result.success) {
+    //                 setStatus(`Successfully created zip file at ${result.zipPath}`);
+    //             } else {
+    //                 setStatus(`Error creating zip: ${result.error}`);
+    //             }
+    //             setIsDownloading(false);
+    //         });
+
+    //     } catch (error) {
+    //         console.error('Error during mesh export:', error);
+    //         setStatus(`Error: ${error.message}`);
+    //         setIsDownloading(false);
+    //     }
+    // };
+
+    // const downloadMergedMeshes = async () => {
+    //     if (!scene) {
+    //         setStatus('Error: Scene not initialized');
+    //         return;
+    //     }
+
+    //     setIsDownloading(true);
+    //     setStatus('Starting mesh download process...');
+
+    //     try {
+    //         const db = await initDB();
+    //         const mergedStore = db.transaction('mergedlpoly', 'readonly').objectStore('mergedlpoly');
+    //         const allMergedMeshes = await mergedStore.getAll();
+
+    //         if (!allMergedMeshes || allMergedMeshes.length === 0) {
+    //             throw new Error('No merged meshes found in database');
+    //         }
+
+    //         setStatus(`Found ${allMergedMeshes.length} meshes to download`);
+
+    //         // Send request to main process to prepare download directory
+    //         window.api.send('prepare-download-directory');
+
+    //         // Process each mesh
+    //         for (const meshData of allMergedMeshes) {
+    //             try {
+    //                 // Convert mesh data to a format suitable for downloading
+    //                 const exportData = {
+    //                     name: meshData.name,
+    //                     vertexData: meshData.vertexData,
+    //                     transforms: meshData.transforms,
+    //                     boundingInfo: meshData.boundingInfo,
+    //                     metadata: meshData.metadata
+    //                 };
+
+    //                 // Convert to JSON string
+    //                 const jsonData = JSON.stringify(exportData, null, 2);
+
+    //                 // Create file name (use mesh name for zip file name)
+    //                 const fileName = `${meshData.name}.json`;
+
+    //                 // Send data to main process for saving
+    //                 window.api.send('save-mesh-data', {
+    //                     fileName: fileName,
+    //                     meshName: meshData.name,
+    //                     data: jsonData
+    //                 });
+
+    //                 console.log(`Prepared ${meshData.name} for download`);
+    //             } catch (error) {
+    //                 console.error(`Error processing mesh ${meshData.name}:`, error);
+    //             }
+    //         }
+
+    //         setStatus('Successfully initiated download for all meshes');
+    //     } catch (error) {
+    //         console.error('Error during mesh download:', error);
+    //         setStatus(`Error: ${error.message}`);
+    //     } finally {
+    //         setIsDownloading(false);
+    //     }
+    // };
 
 
     // const loadLPolyMeshes = async () => {
@@ -481,6 +786,8 @@ const Loadindexdb = ({ engine, scene }) => {
 
 
     // Helper function to find node by number in octree
+
+
     const findNodeByNumber = (block, targetNodeNumber) => {
         if (!block) return null;
 
@@ -837,6 +1144,17 @@ const Loadindexdb = ({ engine, scene }) => {
                     } text-white rounded`}
             >
                 {isLoadingLpoly ? 'Loading Lpoly...' : 'Load Lpoly'}
+            </button>
+
+            <button
+                onClick={downloadMergedMeshes}
+                disabled={isDownloading || !scene}
+                className={`mb-4 p-2 ${isDownloading || !scene
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-purple-500 hover:bg-purple-600'
+                    } text-white rounded`}
+            >
+                {isDownloading ? 'Downloading...' : 'Download Mesh'}
             </button>
 
             <div className="mt-2">
