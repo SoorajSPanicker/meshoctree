@@ -17,7 +17,7 @@ contextBridge.exposeInMainWorld('api', {
     send: (channel, data) => {
         // Whitelist channels for sending messages to the main process
         let validChannels = [
-            'fbx-gltf-converter','open-file-dialog','open-glbfile-dialog','open-glbfile-mesh','prepare-download-directory','save-mesh-data','create-final-zip'     
+            'fbx-gltf-converter','open-file-dialog','open-glbfile-dialog','open-glbfile-mesh','prepare-download-directory','save-mesh-data','create-final-zip','save-octree-data'     
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.send(channel, data);

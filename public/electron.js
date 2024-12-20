@@ -280,7 +280,7 @@ app.whenReady().then(() => {
     ipcMain.on('prepare-download-directory', (event) => {
         try {
             // Update base directory path
-            const baseDir = path.join('D:', 'Poul Consult', 'huldraoctree', 'new version2');
+            const baseDir = path.join('D:', 'Poul Consult', 'huldraoctree', 'new version3');
             const downloadDir = path.join(baseDir, 'MergedMeshDownloads');
             const tempDir = path.join(downloadDir, 'temp_meshes');
 
@@ -339,7 +339,7 @@ app.whenReady().then(() => {
 
     ipcMain.on('save-mesh-data', async (event, { fileName, meshName, glbData }) => {
         try {
-            const baseDir = path.join('D:', 'Poul Consult', 'huldraoctree', 'new version2');
+            const baseDir = path.join('D:', 'Poul Consult', 'huldraoctree', 'new version3');
             const downloadDir = path.join(baseDir, 'MergedMeshDownloads');
             const tempDir = path.join(downloadDir, 'temp_meshes');
 
@@ -370,7 +370,7 @@ app.whenReady().then(() => {
 
     ipcMain.on('create-final-zip', async (event) => {
         try {
-            const baseDir = path.join('D:', 'Poul Consult', 'huldraoctree', 'new version2');
+            const baseDir = path.join('D:', 'Poul Consult', 'huldraoctree', 'new version3');
             const downloadDir = path.join(baseDir, 'MergedMeshDownloads');
             const tempDir = path.join(downloadDir, 'temp_meshes');
 
@@ -411,6 +411,63 @@ app.whenReady().then(() => {
             });
         }
     });
+
+    // Add this handler for octree data
+    ipcMain.on('save-octree-data', (event, { fileName, data }) => {
+        try {
+            const downloadPath = 'D:\\Poul Consult\\huldraoctree\\new version3';
+            const filePath = path.join(downloadPath, fileName);
+
+            // Write the JSON file
+            fs.writeFileSync(filePath, data);
+            console.log(`Saved octree data to ${filePath}`);
+        } catch (error) {
+            console.error('Error saving octree data:', error);
+        }
+    });
+
+    // // Modify your existing zip creation handler to include the JSON file
+    // ipcMain.on('create-final-zip', async (event) => {
+    //     const downloadPath = 'D:\\Poul Consult\\huldraoctree\\new version3';
+    //     const zipFilePath = path.join(downloadPath, 'merged_meshes.zip');
+
+    //     try {
+    //         // Create zip file including both .glb files and octree JSON
+    //         const zip = new JSZip();
+
+    //         // Add all .glb files
+    //         const files = fs.readdirSync(downloadPath);
+    //         for (const file of files) {
+    //             if (file.endsWith('.glb') || file === 'octree_structure.json') {
+    //                 const filePath = path.join(downloadPath, file);
+    //                 const fileData = fs.readFileSync(filePath);
+    //                 zip.file(file, fileData);
+    //             }
+    //         }
+
+    //         // Generate zip file
+    //         const zipContent = await zip.generateAsync({ type: 'nodebuffer' });
+    //         fs.writeFileSync(zipFilePath, zipContent);
+
+    //         // Clean up individual files if needed
+    //         for (const file of files) {
+    //             if (file.endsWith('.glb')) {
+    //                 fs.unlinkSync(path.join(downloadPath, file));
+    //             }
+    //         }
+
+    //         event.reply('zip-complete', {
+    //             success: true,
+    //             zipPath: zipFilePath
+    //         });
+    //     } catch (error) {
+    //         console.error('Error creating zip:', error);
+    //         event.reply('zip-complete', {
+    //             success: false,
+    //             error: error.message
+    //         });
+    //     }
+    // });
 
 })
 
