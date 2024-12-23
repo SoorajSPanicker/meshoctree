@@ -5,6 +5,8 @@ const fsPromises = require('fs').promises;
 const fs = require('fs');                   // For sync operations
 const { execFile } = require('child_process');
 const archiver = require('archiver');
+const AdmZip = require('adm-zip');
+
 let mainWindow;
 const glbFolderPath = 'C:\\Users\\srjsp\\Downloads\\allglbfiles';
 
@@ -425,6 +427,49 @@ app.whenReady().then(() => {
             console.error('Error saving octree data:', error);
         }
     });
+
+    // Handler for reading octree JSON file
+ipcMain.on('read-octree-file', async (event, { filePath }) => {
+    try {
+        const data = fs.readFileSync(filePath, 'utf8');
+        const octreeData = JSON.parse(data);
+        event.reply('octree-file-data', octreeData);
+    } catch (error) {
+        console.error('Error reading octree file:', error);
+        event.reply('octree-file-data', null);
+    }
+});
+
+// Handler for processing GLB files from zip
+ipcMain.on('extract-glb-files', async (event, { dirPath }) => {
+    try {
+        const files = fs.readdirSync(dirPath);
+        const zipFile = files.find(file => file.includes('merged_meshes') && file.endsWith('.zip'));
+        
+        if (!zipFile) {
+            throw new Error('No merged_meshes zip file found');
+        }
+
+        const zip = new AdmZip(path.join(dirPath, zipFile));
+        const zipEntries = zip.getEntries();
+        
+        const glbFiles = [];
+        
+        for (const entry of zipEntries) {
+            if (entry.entryName.endsWith('.glb')) {
+                glbFiles.push({
+                    fileName: path.basename(entry.entryName),
+                    data: entry.getData()
+                });
+            }
+        }
+
+        event.reply('glb-files-data', glbFiles);
+    } catch (error) {
+        console.error('Error processing GLB files:', error);
+        event.reply('glb-files-data', []);
+    }
+});
 
     // // Modify your existing zip creation handler to include the JSON file
     // ipcMain.on('create-final-zip', async (event) => {

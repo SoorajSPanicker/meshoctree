@@ -134,48 +134,81 @@ function Fbxload() {
             max: { x: max.x, y: max.y, z: max.z }
         });
 
-        // Filter meshes that intersect with this block
+        // // Filter meshes that intersect with this block
+        // const meshInfosInBlock = meshInfos.filter(meshInfo => {
+        //     if (!meshInfo || !meshInfo.boundingInfo) return false;
+
+        //     // Get mesh's world position from transforms
+        //     const position = meshInfo.transforms.position;
+        //     const scaling = meshInfo.transforms.scaling;
+        //     const worldMatrix = meshInfo.transforms.worldMatrix;
+
+        //     // Transform mesh's bounding box to world space
+        //     const localMin = meshInfo.boundingInfo.minimum;
+        //     const localMax = meshInfo.boundingInfo.maximum;
+
+        //     // Create transformation matrix
+        //     const transformMatrix = BABYLON.Matrix.FromArray(worldMatrix);
+
+        //     // Transform bounds to world space
+        //     const worldMin = BABYLON.Vector3.TransformCoordinates(
+        //         new BABYLON.Vector3(localMin.x, localMin.y, localMin.z),
+        //         transformMatrix
+        //     );
+        //     const worldMax = BABYLON.Vector3.TransformCoordinates(
+        //         new BABYLON.Vector3(localMax.x, localMax.y, localMax.z),
+        //         transformMatrix
+        //     );
+
+        //     // Check intersection
+        //     const intersects = !(
+        //         worldMax.x < min.x || worldMin.x > max.x ||
+        //         worldMax.y < min.y || worldMin.y > max.y ||
+        //         worldMax.z < min.z || worldMin.z > max.z
+        //     );
+
+        //     if (intersects) {
+        //         console.log(`Mesh ${meshInfo.metadata.id} intersects block at depth ${depth}`);
+        //         console.log('Mesh bounds:', {
+        //             worldMin: { x: worldMin.x, y: worldMin.y, z: worldMin.z },
+        //             worldMax: { x: worldMax.x, y: worldMax.y, z: worldMax.z }
+        //         });
+        //     }
+
+        //     return intersects;
+        // });
+
+        // In createOctreeBlock function
         const meshInfosInBlock = meshInfos.filter(meshInfo => {
             if (!meshInfo || !meshInfo.boundingInfo) return false;
 
-            // Get mesh's world position from transforms
-            const position = meshInfo.transforms.position;
-            const scaling = meshInfo.transforms.scaling;
-            const worldMatrix = meshInfo.transforms.worldMatrix;
-
-            // Transform mesh's bounding box to world space
-            const localMin = meshInfo.boundingInfo.minimum;
-            const localMax = meshInfo.boundingInfo.maximum;
-
-            // Create transformation matrix
-            const transformMatrix = BABYLON.Matrix.FromArray(worldMatrix);
-
-            // Transform bounds to world space
+            // Calculate center point of mesh
             const worldMin = BABYLON.Vector3.TransformCoordinates(
-                new BABYLON.Vector3(localMin.x, localMin.y, localMin.z),
-                transformMatrix
+                new BABYLON.Vector3(
+                    meshInfo.boundingInfo.minimum.x,
+                    meshInfo.boundingInfo.minimum.y,
+                    meshInfo.boundingInfo.minimum.z
+                ),
+                BABYLON.Matrix.FromArray(meshInfo.transforms.worldMatrix)
             );
+
             const worldMax = BABYLON.Vector3.TransformCoordinates(
-                new BABYLON.Vector3(localMax.x, localMax.y, localMax.z),
-                transformMatrix
+                new BABYLON.Vector3(
+                    meshInfo.boundingInfo.maximum.x,
+                    meshInfo.boundingInfo.maximum.y,
+                    meshInfo.boundingInfo.maximum.z
+                ),
+                BABYLON.Matrix.FromArray(meshInfo.transforms.worldMatrix)
             );
 
-            // Check intersection
-            const intersects = !(
-                worldMax.x < min.x || worldMin.x > max.x ||
-                worldMax.y < min.y || worldMin.y > max.y ||
-                worldMax.z < min.z || worldMin.z > max.z
+            const center = BABYLON.Vector3.Center(worldMin, worldMax);
+
+            // Assign mesh to node only if its center point is inside the node
+            return (
+                center.x >= min.x && center.x <= max.x &&
+                center.y >= min.y && center.y <= max.y &&
+                center.z >= min.z && center.z <= max.z
             );
-
-            if (intersects) {
-                console.log(`Mesh ${meshInfo.metadata.id} intersects block at depth ${depth}`);
-                console.log('Mesh bounds:', {
-                    worldMin: { x: worldMin.x, y: worldMin.y, z: worldMin.z },
-                    worldMax: { x: worldMax.x, y: worldMax.y, z: worldMax.z }
-                });
-            }
-
-            return intersects;
         });
 
         console.log(`Found ${meshInfosInBlock.length} meshes in block at depth ${depth}`);

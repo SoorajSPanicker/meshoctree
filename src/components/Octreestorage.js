@@ -191,33 +191,88 @@ const Octreestorage = ({ convertedModels, lpolyModels, octree , scene }) => {
         };
     };
 
-    const serializeMeshData = (meshData) => {
-        return {
-            fileName: meshData.fileName,
-            data: {
-                name: meshData.data.name,
-                vertexData: meshData.data.vertexData,
-                transforms: {
-                    position: meshData.data.transforms.position,
-                    rotation: meshData.data.transforms.rotation,
-                    scaling: meshData.data.transforms.scaling,
-                    worldMatrix: Array.from(meshData.data.transforms.worldMatrix)
-                },
-                boundingInfo: meshData.data.boundingInfo,
-                metadata: {
-                    id: meshData.data.metadata.id,
-                    geometryInfo: meshData.data.metadata.geometryInfo,
-                    material: meshData.data.metadata.material ? {
-                        name: meshData.data.metadata.material.name,
-                        id: meshData.data.metadata.material.id,
-                        diffuseColor: meshData.data.metadata.material.diffuseColor
-                    } : null
-                }
-            }
-        };
-    };
+    // const serializeMeshData = (meshData) => {
+    //     return {
+    //         fileName: meshData.fileName,
+    //         data: {
+    //             name: meshData.data.name,
+    //             vertexData: meshData.data.vertexData,
+    //             transforms: {
+    //                 position: meshData.data.transforms.position,
+    //                 rotation: meshData.data.transforms.rotation,
+    //                 scaling: meshData.data.transforms.scaling,
+    //                 worldMatrix: Array.from(meshData.data.transforms.worldMatrix)
+    //             },
+    //             boundingInfo: meshData.data.boundingInfo,
+    //             metadata: {
+    //                 id: meshData.data.metadata.id,
+    //                 geometryInfo: meshData.data.metadata.geometryInfo,
+    //                 material: meshData.data.metadata.material ? {
+    //                     name: meshData.data.metadata.material.name,
+    //                     id: meshData.data.metadata.material.id,
+    //                     diffuseColor: meshData.data.metadata.material.diffuseColor
+    //                 } : null
+    //             }
+    //         }
+    //     };
+    // };
 
     // Serialize octree data with updated structure
+ 
+    const serializeMeshData = (meshData) => {
+        // Helper function to safely convert TypedArrays to regular arrays
+        const convertTypedArray = (arr) => {
+            if (!arr) return null;
+            // Check if it's already an array
+            if (Array.isArray(arr)) return arr;
+            // Check if it's a TypedArray
+            if (ArrayBuffer.isView(arr)) return Array.from(arr);
+            return null;
+        };
+    
+        try {
+            return {
+                fileName: meshData.fileName,
+                data: {
+                    name: meshData.data.name,
+                    vertexData: {
+                        positions: convertTypedArray(meshData.data.vertexData.positions),
+                        normals: convertTypedArray(meshData.data.vertexData.normals),
+                        indices: convertTypedArray(meshData.data.vertexData.indices),
+                        uvs: convertTypedArray(meshData.data.vertexData.uvs)
+                    },
+                    transforms: {
+                        position: meshData.data.transforms.position,
+                        rotation: meshData.data.transforms.rotation,
+                        scaling: meshData.data.transforms.scaling,
+                        worldMatrix: Array.from(meshData.data.transforms.worldMatrix)
+                    },
+                    boundingInfo: {
+                        minimum: meshData.data.boundingInfo.minimum,
+                        maximum: meshData.data.boundingInfo.maximum,
+                        boundingSphere: meshData.data.boundingInfo.boundingSphere
+                    },
+                    metadata: {
+                        id: meshData.data.metadata.id,
+                        geometryInfo: {
+                            totalVertices: meshData.data.metadata.geometryInfo.totalVertices,
+                            totalIndices: meshData.data.metadata.geometryInfo.totalIndices,
+                            faceCount: meshData.data.metadata.geometryInfo.faceCount
+                        },
+                        material: meshData.data.metadata.material ? {
+                            name: meshData.data.metadata.material.name,
+                            id: meshData.data.metadata.material.id,
+                            diffuseColor: meshData.data.metadata.material.diffuseColor
+                        } : null
+                    }
+                }
+            };
+        } catch (error) {
+            console.error('Error serializing mesh data:', error, meshData);
+            throw error;
+        }
+    };
+ 
     const serializeOctree = (octreeData) => {
         if (!octreeData || !octreeData.bounds) {
             console.error('Invalid octree data:', octreeData);
@@ -282,64 +337,213 @@ const Octreestorage = ({ convertedModels, lpolyModels, octree , scene }) => {
     };
 
     // Save data to IndexedDB
+    // const saveToIndexedDB = async () => {
+    //     try {
+    //         setStorageStatus('Initializing storage...');
+    //         const db = await initDB();
+
+    //         // Store original models
+    //         const modelTx = db.transaction('models', 'readwrite');
+    //         const modelStore = modelTx.objectStore('models');
+
+    //         for (const model of convertedModels) {
+    //             setStorageStatus(`Storing original model: ${model.fileName}`);
+    //             const serializedModel = serializeMeshData(model);
+    //             await modelStore.put(serializedModel);
+    //         }
+
+    //         // Store low-poly models
+    //         const lmodelTx = db.transaction('lmodels', 'readwrite');
+    //         const lmodelStore = lmodelTx.objectStore('lmodels');
+
+    //         for (const model of lpolyModels) {
+    //             setStorageStatus(`Storing low-poly model: ${model.fileName}`);
+    //             const serializedModel = serializelMeshData(model);
+    //             await lmodelStore.put(serializedModel);
+    //         }
+
+    //         // Store octree data
+    //         const serializedOctree = serializeOctree(octree);
+    //         if (serializedOctree) {
+    //             const octreeTx = db.transaction('octrees', 'readwrite');
+    //             const octreeStore = octreeTx.objectStore('octrees');
+    //             await octreeStore.put({
+    //                 name: 'mainOctree',
+    //                 data: serializedOctree,
+    //                 timestamp: new Date().toISOString()
+    //             });
+    //         }
+
+    //         // Verify storage
+    //         const modelCount = await db.count('models');
+    //         const lmodelCount = await db.count('lmodels');
+    //         const octreeCount = await db.count('octrees');
+
+    //         setStorageStatus(
+    //             `Storage complete. Stored ${modelCount} original models, ` +
+    //             `${lmodelCount} low-poly models, and ${octreeCount} octrees.`
+    //         );
+
+    //         console.log(`Storage statistics:`, {
+    //             originalModels: modelCount,
+    //             lowPolyModels: lmodelCount,
+    //             octrees: octreeCount
+    //         });
+
+    //         // handleRetrieveMeshes();
+
+    //     } catch (error) {
+    //         console.error('Error saving to IndexedDB:', error);
+    //         setStorageStatus(`Error: ${error.message}`);
+    //     }
+    // };
+
     const saveToIndexedDB = async () => {
+        let db;
         try {
+            // Initial status update
             setStorageStatus('Initializing storage...');
-            const db = await initDB();
-
-            // Store original models
-            const modelTx = db.transaction('models', 'readwrite');
-            const modelStore = modelTx.objectStore('models');
-
-            for (const model of convertedModels) {
-                setStorageStatus(`Storing original model: ${model.fileName}`);
-                const serializedModel = serializeMeshData(model);
-                await modelStore.put(serializedModel);
-            }
-
-            // Store low-poly models
-            const lmodelTx = db.transaction('lmodels', 'readwrite');
-            const lmodelStore = lmodelTx.objectStore('lmodels');
-
-            for (const model of lpolyModels) {
-                setStorageStatus(`Storing low-poly model: ${model.fileName}`);
-                const serializedModel = serializelMeshData(model);
-                await lmodelStore.put(serializedModel);
-            }
-
-            // Store octree data
-            const serializedOctree = serializeOctree(octree);
-            if (serializedOctree) {
-                const octreeTx = db.transaction('octrees', 'readwrite');
-                const octreeStore = octreeTx.objectStore('octrees');
-                await octreeStore.put({
-                    name: 'mainOctree',
-                    data: serializedOctree,
-                    timestamp: new Date().toISOString()
-                });
-            }
-
-            // Verify storage
-            const modelCount = await db.count('models');
-            const lmodelCount = await db.count('lmodels');
-            const octreeCount = await db.count('octrees');
-
-            setStorageStatus(
-                `Storage complete. Stored ${modelCount} original models, ` +
-                `${lmodelCount} low-poly models, and ${octreeCount} octrees.`
-            );
-
-            console.log(`Storage statistics:`, {
-                originalModels: modelCount,
-                lowPolyModels: lmodelCount,
-                octrees: octreeCount
+            console.log('Starting storage process with:', {
+                originalModels: convertedModels?.length || 0,
+                lowPolyModels: lpolyModels?.length || 0,
+                octreePresent: !!octree
             });
-
-            // handleRetrieveMeshes();
-
+    
+            // Initialize database
+            db = await initDB();
+            
+            // Store original models
+            if (convertedModels && convertedModels.length > 0) {
+                const modelTx = db.transaction('models', 'readwrite');
+                const modelStore = modelTx.objectStore('models');
+                
+                setStorageStatus(`Storing ${convertedModels.length} original models...`);
+                
+                let successCount = 0;
+                let errorCount = 0;
+                
+                for (const model of convertedModels) {
+                    try {
+                        if (!model || !model.data) {
+                            console.warn('Skipping invalid model:', model);
+                            errorCount++;
+                            continue;
+                        }
+    
+                        setStorageStatus(`Storing original model: ${model.fileName}`);
+                        const serializedModel = serializeMeshData(model);
+                        
+                        // Validate serialized data
+                        if (!serializedModel || !serializedModel.data || !serializedModel.fileName) {
+                            throw new Error(`Invalid serialized data for model: ${model.fileName}`);
+                        }
+                        
+                        await modelStore.put(serializedModel);
+                        successCount++;
+                        console.log(`Successfully stored original model: ${model.fileName}`);
+                    } catch (error) {
+                        console.error(`Error storing original model ${model?.fileName || 'unknown'}:`, error);
+                        errorCount++;
+                    }
+                }
+                
+                console.log(`Original models storage complete: ${successCount} successful, ${errorCount} failed`);
+            }
+    
+            // Store low-poly models
+            if (lpolyModels && lpolyModels.length > 0) {
+                const lmodelTx = db.transaction('lmodels', 'readwrite');
+                const lmodelStore = lmodelTx.objectStore('lmodels');
+                
+                setStorageStatus(`Storing ${lpolyModels.length} low-poly models...`);
+                
+                let successCount = 0;
+                let errorCount = 0;
+                
+                for (const model of lpolyModels) {
+                    try {
+                        if (!model || !model.data) {
+                            console.warn('Skipping invalid low-poly model:', model);
+                            errorCount++;
+                            continue;
+                        }
+    
+                        setStorageStatus(`Storing low-poly model: ${model.fileName}`);
+                        const serializedModel = serializelMeshData(model);
+                        
+                        // Validate serialized data
+                        if (!serializedModel || !serializedModel.data || !serializedModel.fileName) {
+                            throw new Error(`Invalid serialized data for low-poly model: ${model.fileName}`);
+                        }
+                        
+                        await lmodelStore.put(serializedModel);
+                        successCount++;
+                        console.log(`Successfully stored low-poly model: ${model.fileName}`);
+                    } catch (error) {
+                        console.error(`Error storing low-poly model ${model?.fileName || 'unknown'}:`, error);
+                        errorCount++;
+                    }
+                }
+                
+                console.log(`Low-poly models storage complete: ${successCount} successful, ${errorCount} failed`);
+            }
+    
+            // Store octree data
+            if (octree) {
+                try {
+                    setStorageStatus('Storing octree data...');
+                    const serializedOctree = serializeOctree(octree);
+                    
+                    if (!serializedOctree) {
+                        throw new Error('Failed to serialize octree data');
+                    }
+                    
+                    const octreeTx = db.transaction('octrees', 'readwrite');
+                    const octreeStore = octreeTx.objectStore('octrees');
+                    
+                    await octreeStore.put({
+                        name: 'mainOctree',
+                        data: serializedOctree,
+                        timestamp: new Date().toISOString()
+                    });
+                    
+                    console.log('Successfully stored octree data');
+                } catch (error) {
+                    console.error('Error storing octree:', error);
+                    setStorageStatus(`Error storing octree: ${error.message}`);
+                }
+            }
+    
+            // Verify storage and generate final statistics
+            try {
+                const modelCount = await db.count('models');
+                const lmodelCount = await db.count('lmodels');
+                const octreeCount = await db.count('octrees');
+    
+                const finalStatus = `Storage complete. Stored ${modelCount} original models, ` +
+                                  `${lmodelCount} low-poly models, and ${octreeCount} octrees.`;
+                
+                setStorageStatus(finalStatus);
+                
+                console.log('Final storage statistics:', {
+                    originalModels: modelCount,
+                    lowPolyModels: lmodelCount,
+                    octrees: octreeCount
+                });
+    
+            } catch (error) {
+                console.error('Error verifying storage counts:', error);
+            }
+    
         } catch (error) {
-            console.error('Error saving to IndexedDB:', error);
-            setStorageStatus(`Error: ${error.message}`);
+            const errorMessage = `Storage initialization failed: ${error.message}`;
+            console.error(errorMessage, error);
+            setStorageStatus(errorMessage);
+            throw error;
+        } finally {
+            if (db) {
+                db.close();
+            }
         }
     };
 

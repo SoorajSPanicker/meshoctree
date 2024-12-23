@@ -17,7 +17,7 @@ contextBridge.exposeInMainWorld('api', {
     send: (channel, data) => {
         // Whitelist channels for sending messages to the main process
         let validChannels = [
-            'fbx-gltf-converter','open-file-dialog','open-glbfile-dialog','open-glbfile-mesh','prepare-download-directory','save-mesh-data','create-final-zip','save-octree-data'     
+            'fbx-gltf-converter','open-file-dialog','open-glbfile-dialog','open-glbfile-mesh','prepare-download-directory','save-mesh-data','create-final-zip','save-octree-data','read-octree-file','extract-glb-files'     
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.send(channel, data);
@@ -26,7 +26,7 @@ contextBridge.exposeInMainWorld('api', {
     receive: (channel, func) => {
         // Whitelist channels for receiving messages from the main process
         let validChannels = [
-            'fbx-conversion-success','gbl-file-content','gbl-file-value','gbl-file-mesh','download-directory-ready','mesh-save-progress','zip-complete'  
+            'fbx-conversion-success','gbl-file-content','gbl-file-value','gbl-file-mesh','download-directory-ready','mesh-save-progress','zip-complete','octree-file-data','glb-files-data'  
         ];
         if (validChannels.includes(channel)) {
             // Deliberately strip event as it includes sender
